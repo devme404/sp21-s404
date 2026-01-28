@@ -22,6 +22,9 @@ public class TimeAList {
     }
 
     public static void timeAListConstruction() {
-        // TODO: YOUR CODE HERE
+        AList<Integer> Ns = new AList<>();
+        for (int i = 1000; i <= 128000; i *= 2) {
+            Ns.addLast(i);
+        }
     }
 }
