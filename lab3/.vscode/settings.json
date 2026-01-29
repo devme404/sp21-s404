@@ -1,0 +1,9 @@
+{
+  "java.project.referencedLibraries": [
+    "../library-sp21/javalib/**/*.jar",
+    "../library-sp21/javalib/CS61B/**/*.jar"
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.maven.downloadSources": true
+}

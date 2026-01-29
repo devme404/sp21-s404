@@ -23,8 +23,21 @@ public class TimeAList {
 
     public static void timeAListConstruction() {
         AList<Integer> Ns = new AList<>();
-        for (int i = 1000; i <= 128000; i *= 2) {
+        AList<Integer> subject = new AList<>();
+        AList<Double> times = new AList<>();
+        for (int i = 1000, j = 0; j < 15; i *= 2, j++) {
             Ns.addLast(i);
         }
+        // System.out.println("Ns created.");
+        for (int i = 0; i < Ns.size(); i++) {
+            Stopwatch sw = new Stopwatch();
+            for (int j = 0; j < Ns.get(i); j++) {
+                subject.addLast(j);
+            }
+            double timeInSeconds = sw.elapsedTime();
+            times.addLast(timeInSeconds);
+        }
+        // System.out.println("Time estimated.");
+        printTimingTable(Ns, times, Ns);
     }
 }
