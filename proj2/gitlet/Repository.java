@@ -118,6 +118,20 @@ public class Repository {
         String hash_of_file_to_add = Utils.sha1(filename, content_of_file_to_add);
 
         File stage_of_file_to_add = Utils.join(STAGE_DIR, hash_of_file_to_add);
+        String tracked_hash, old_hash;
+
+        if (state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.containsKey(filename)) {
+            tracked_hash = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.get(filename);
+            if (tracked_hash.equals(hash_of_file_to_add)) {
+                if (state_.addition_stage.containsKey(filename)) {
+                    old_hash = state_.addition_stage.get(filename);
+                    File old_stage_file = Utils.join(STAGE_DIR, old_hash);
+                    old_stage_file.delete();
+                    state_.addition_stage.remove(filename);
+                }
+                return;
+            }
+        }
 
         if (!state_.addition_stage.containsKey(filename)) {
             Utils.writeContents(stage_of_file_to_add, content_of_file_to_add);
@@ -125,11 +139,9 @@ public class Repository {
             return;
         }
 
-        String old_hash = state_.addition_stage.get(filename);
 
+        old_hash = state_.addition_stage.get(filename);
         if (old_hash.equals(hash_of_file_to_add)) {
-            stage_of_file_to_add.delete();
-            state_.addition_stage.remove(filename);
             return;
         }
 
@@ -163,6 +175,10 @@ public class Repository {
     }
 
     public void commit(String message, String second_parent_commit) {
+        if (message.length() == 0) {
+            Utils.message("Please enter a commit message.");
+            System.exit(0);
+        }
         if (state_.addition_stage.isEmpty() && state_.deletion_stage.isEmpty()) {
             Utils.message("No changes added to the commit.");
             return;
@@ -221,34 +237,43 @@ public class Repository {
             if (branch.equals(HEAD_POINTER)) {
                 continue;
             }
-
-            if (branch.equals(state_.branch_)) {
-                Utils.message("*" + branch);
-                continue;
-            }
-            
             branches.add(branch);
         }
         Collections.sort(branches);
         for (String branch : branches) {
+            if (branch.equals(state_.branch_)) {
+                Utils.message("*" + branch);
+                continue;
+            }
             Utils.message(branch);
         }
         System.out.println();
 
         Utils.message("=== Staged Files ===");
+        List<String> staged_files = new ArrayList<>();
         for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
-            Utils.message(entry.getKey());
+            staged_files.add(entry.getKey());
+        }
+        Collections.sort(staged_files);
+        for (String file : staged_files) {
+            Utils.message(file);
         }
         System.out.println();
 
         Utils.message("=== Removed Files ===");
+        List<String> removed_files = new ArrayList<>();
         for (Map.Entry<String, String> entry : state_.deletion_stage.entrySet()) {
-            Utils.message(entry.getKey());
+            removed_files.add(entry.getKey());
+        }
+        Collections.sort(removed_files);
+        for (String file : removed_files) {
+            Utils.message(file);
         }
         System.out.println();
 
         Utils.message("=== Modifications Not Staged For Commit ===");
         HashMap<String, String> tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
+        List<String> modifications = new ArrayList<>();
         for (Map.Entry<String, String> entry : tracked_files.entrySet()) {
             String filename = entry.getKey();
             if (state_.addition_stage.containsKey(filename)) {
@@ -260,11 +285,11 @@ public class Repository {
                 byte[] content_of_file_in_cwd = readContents(file);
                 String hash_of_file_in_cwd = Utils.sha1(filename, content_of_file_in_cwd);
                 if (!hash_of_file_in_cwd.equals(entry.getValue())) {
-                    Utils.message(filename + " (modified)");
+                    modifications.add(filename + " (modified)");
                 }
             } else {
                 if (!state_.deletion_stage.containsKey(filename)) {
-                    Utils.message(filename + " (deleted)");
+                    modifications.add(filename + " (deleted)");
                 }
             }
         }
@@ -277,16 +302,22 @@ public class Repository {
                 byte[] content_of_file_in_cwd = Utils.readContents(file);
                 String hash_of_file_in_cwd = Utils.sha1(filename, content_of_file_in_cwd);
                 if (!hash_of_file_in_cwd.equals(entry.getValue())) {
-                    Utils.message(filename + " (modified)");
+                    modifications.add(filename + " (modified)");
                 }
             } else {
-                Utils.message(filename + " (deleted)");
+                modifications.add(filename + " (deleted)");
             }
         }
+
+        Collections.sort(modifications);
+        for (String file : modifications) {
+            Utils.message(file);
+        }
+
         System.out.println();
 
         Utils.message("=== Untracked Files ===");
-        HashSet<String> files = scanUntrackedFiles();
+        List<String> files = scanUntrackedFiles();
         for (String file : files) {
             Utils.message(file);
         }
@@ -353,24 +384,28 @@ public class Repository {
 
     public void reset(String commit_id) {
         String id_to_reset = findCommit(commit_id);
+        checkoutCommit(id_to_reset);
         state_.pointers_.put(HEAD_POINTER, id_to_reset);
         state_.pointers_.put(state_.branch_, id_to_reset);
     }
 
     public void merge(String branch) {
-        if (!state_.addition_stage.isEmpty() || !state_.deletion_stage.isEmpty()) {
-            Utils.message("You have uncommitted changes.");
+        if (state_.branch_.equals(branch)) {
+            Utils.message("Cannot merge a branch with itself.");
             System.exit(0);
         }
-        
+
         if (!state_.pointers_.containsKey(branch)) {
             Utils.message("A branch with that name does not exist.");
             System.exit(0);
         }
 
-        if (state_.branch_.equals(branch)) {
-            Utils.message("Cannot merge a branch with itself.");
+
+        if (!state_.addition_stage.isEmpty() || !state_.deletion_stage.isEmpty()) {
+            Utils.message("You have uncommitted changes.");
+            System.exit(0);
         }
+
 
         Commit given_branch_head = state_.commit_tree.get(state_.pointers_.get(branch));
         Commit current_branch_head = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
@@ -383,12 +418,12 @@ public class Repository {
         }
         
         if (split_point.id_.equals(current_branch_head.id_)) {
-            checkoutCommit(given_branch_head.id_);
+            checkoutBranch(branch);
             Utils.message("Current branch fast-forwarded.");
             return;
         }
 
-        HashSet<String> untracked_files = scanUntrackedFiles();
+        List<String> untracked_files = scanUntrackedFiles();
 
         boolean isConflicted = false;
 
@@ -413,9 +448,12 @@ public class Repository {
 
                 if (!given_branch_head.tracked_.containsKey(split_point_filename)) {
                     rm(split_point_filename);
+                    continue;
                 }
 
                 checkout(given_branch_head.id_, split_point_filename);
+                add(split_point_filename);
+                continue;
             }
 
             if (!current_branch_head.tracked_.containsKey(split_point_filename)) {
@@ -427,7 +465,8 @@ public class Repository {
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
                 File given_file = Utils.join(BLOB_DIR, given_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>\n");
+                add(split_point_filename);
             }
 
             if (!given_branch_head.tracked_.containsKey(split_point_filename)) {
@@ -439,7 +478,8 @@ public class Repository {
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
                 File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n>>>>>>>\n");
+                add(split_point_filename);
             }
             if (current_branch_head.tracked_.containsKey(split_point_filename) && given_branch_head.tracked_.containsKey(split_point_filename)) {
                 if (current_branch_head.tracked_.get(split_point_filename).equals(given_branch_head.tracked_.get(split_point_filename))) {
@@ -456,12 +496,8 @@ public class Repository {
                 File cwd_file = Utils.join(CWD, split_point_filename);
                 File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(split_point_filename));
                 File given_file = Utils.join(BLOB_DIR, given_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>\n");
-            }
-
-            if (isConflicted) {
-                add(split_point_filename); 
-                Utils.message("Encountered a merge conflict.");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>\n");
+                add(split_point_filename);
             }
         }
 
@@ -486,11 +522,15 @@ public class Repository {
                 File cwd_file = Utils.join(CWD, filename);
                 File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(filename));
                 File given_file = Utils.join(BLOB_DIR, entry.getValue());
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>");
                 add(filename);
-                Utils.message("Encountered a merge conflict.");
+                isConflicted = true;
             }
         }
+        if (isConflicted) {
+            Utils.message("Encountered a merge conflict.");
+        }
+
 
         commit("Merged " + branch + " into " + state_.branch_ + ".", given_branch_head.id_);
 
@@ -513,8 +553,8 @@ public class Repository {
         return String.format("===\ncommit %s\nMerge: %.7s %.7s\nDate: %s\n%s\n", commit.id_, commit.parent_commit_, commit.second_parent_commit_, sdf.format(commit.date_and_time_), commit.message_);
     }
 
-    private HashSet<String> scanUntrackedFiles() {
-        HashSet<String> files = new HashSet<>();
+    private List<String> scanUntrackedFiles() {
+        List<String> files = new ArrayList<>();
         for (Map.Entry<String, String> entry : state_.deletion_stage.entrySet()) {
             String filename = entry.getKey();
             File file = Utils.join(CWD, filename);
@@ -529,6 +569,7 @@ public class Repository {
                 files.add(filename);
             }
         }
+        Collections.sort(files);
 
         return files;
     }
@@ -536,7 +577,7 @@ public class Repository {
     private void checkoutCommit(String commit_id) {
         HashMap<String, String> target_files = state_.commit_tree.get(commit_id).tracked_;
 
-        HashSet<String> untracked_files = scanUntrackedFiles();
+        List<String> untracked_files = scanUntrackedFiles();
 
         for (String file : untracked_files) {
             if (target_files.containsKey(file)) {
@@ -590,22 +631,57 @@ public class Repository {
         return id_to_checkout;
     }
 
-    private String findSplitPoint(String first_commit, String second_commit) {
-        HashSet<String> second_commit_history = new HashSet<>();
-        while (!second_commit.equals("")) {
-            second_commit_history.add(second_commit);
-            second_commit = state_.commit_tree.get(second_commit).parent_commit_;
-        }
 
-        while (!first_commit.equals("")) {
-            if (second_commit_history.contains(first_commit)) {
-                return first_commit;
+    private HashMap<String, Integer> findParentsDistance(String commit) {
+        Queue<String> queue = new LinkedList<>();
+        HashMap<String, Integer> distances = new HashMap<>();
+
+        queue.add(commit);
+        distances.put(commit, 0);
+
+        while (!queue.isEmpty()) {
+            String id = queue.remove();
+            Integer parent_distance = distances.get(id) + 1;
+            Commit curr_commit = state_.commit_tree.get(id);
+            String first_parent = curr_commit.parent_commit_;
+            String second_parent = curr_commit.second_parent_commit_;
+
+            if (!first_parent.equals("") && !distances.containsKey(first_parent)) {
+                queue.add(first_parent);
+                distances.put(first_parent, parent_distance);
             }
-            first_commit = state_.commit_tree.get(first_commit).parent_commit_;
+            if (!second_parent.equals("") && !distances.containsKey(second_parent)) {
+                queue.add(second_parent);
+                distances.put(second_parent, parent_distance);
+            }
         }
 
-        Utils.error("There should be a split point between these two commits.");
-        return "";
+        return distances;
+    }
+
+    private String findSplitPoint(String first_commit, String second_commit) {
+        HashMap<String, Integer> first_parent_distances = findParentsDistance(first_commit);
+        HashMap<String, Integer> second_parent_distances = findParentsDistance(second_commit);
+
+        String best_parent = null;
+        Integer best_distance = Integer.MAX_VALUE;
+
+        for (Map.Entry<String, Integer> entry : first_parent_distances.entrySet()) {
+            String curr_parent = entry.getKey();
+            if (second_parent_distances.containsKey(curr_parent)) {
+                Integer sum_distance = entry.getValue() + second_parent_distances.get(curr_parent);
+                if (sum_distance < best_distance) {
+                    best_parent = curr_parent;
+                    best_distance = sum_distance;
+                }
+            }
+        }
+
+        if (best_parent != null) {
+            return best_parent;
+        }
+        
+        throw Utils.error("There should be a split point between these two commits.");
     }
 
 }

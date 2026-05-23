@@ -18,18 +18,19 @@ public class Main {
         String firstArg = args[0];
         switch(firstArg) {
             case "init":
+                checkZeroArg(args);
                 repo.init();
                 repo.save();
                 break;
             case "add":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.add(args[1]);
                 repo.save();
                 break;
             case "rm":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.rm(args[1]);
                 repo.save();
                 break;
@@ -39,33 +40,37 @@ public class Main {
                     Utils.message("Please enter a commit message.");
                     System.exit(0);
                 }
+                checkOneArg(args);
                 repo.commit(args[1], "");
                 repo.save();
                 break;
             case "log":
+                checkZeroArg(args);
                 repo.check();
                 repo.log();
                 break;
             case "global-log":
+                checkZeroArg(args);
                 repo.check();
                 repo.globalLog();
                 break;
             case "find":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.find(args[1]);
                 break;
             case "status":
+                checkZeroArg(args);
                 repo.check();
                 repo.status();
                 break;
             case "checkout":
                 repo.check();
-                if (args.length == 2) {
+                if (args.length == 2 && !args[1].equals("--")) {
                     repo.checkoutBranch(args[1]);
-                } else if (args.length == 3) {
+                } else if (args.length == 3 && args[1].equals("--")) {
                     repo.checkout(args[2]);
-                } else if (args.length == 4) {
+                } else if (args.length == 4 && args[2].equals("--")) {
                     repo.checkout(args[1], args[3]);
                 } else {
                     Utils.message("Incorrect operands.");
@@ -75,25 +80,25 @@ public class Main {
                 break;
             case "branch":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.branch(args[1]);
                 repo.save();
                 break;
             case "rm-branch":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.rmBranch(args[1]);
                 repo.save();
                 break;
             case "reset":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.reset(args[1]);
                 repo.save();
                 break;
             case "merge":
                 repo.check();
-                checkArgsNum(args);
+                checkOneArg(args);
                 repo.merge(args[1]);
                 repo.save();
                 break;
@@ -104,8 +109,15 @@ public class Main {
         }
     }
 
-    private static void checkArgsNum(String[] argv) {
+    private static void checkOneArg(String[] argv) {
         if (argv.length < 2 || argv.length > 2) {
+            Utils.message("Incorrect operands.");
+            System.exit(0);
+        }
+    }
+
+    private static void checkZeroArg(String[] args) {
+        if (args.length > 1) {
             Utils.message("Incorrect operands.");
             System.exit(0);
         }

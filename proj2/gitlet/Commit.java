@@ -32,8 +32,7 @@ public class Commit implements Serializable {
 
     /** The date and time of this commit. */
     public Date date_and_time_;
-
-    /** The ID of this commit. */
+/** The ID of this commit. */
     public String id_;
 
     /** The tracked content of this commit. */
@@ -51,7 +50,7 @@ public class Commit implements Serializable {
     }
 
     public void updateID() {
-        id_ = Utils.sha1(this.date_and_time_.toString(), this.message_, this.parent_commit_, this.tracked_.toString());
+        id_ = Utils.sha1(this.date_and_time_.toString(), this.message_, this.parent_commit_, this.second_parent_commit_, this.tracked_.toString());
     }
 
 }
