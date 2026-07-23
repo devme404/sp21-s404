@@ -29,7 +29,7 @@ public class Repository {
     public static final File BLOB_DIR = join(GITLET_DIR, "blob");
 
     /** The state file. */
-    public static final File STATE = join(GITLET_DIR, "state");
+    public static final File STATE_DIR = join(GITLET_DIR, "state");
 
     /** The state of gitlet. */
     public State state_;
@@ -54,7 +54,7 @@ public class Repository {
         BLOB_DIR.mkdir();
 
         state_.init();
-        Utils.writeObject(STATE, state_);
+        Utils.writeObject(STATE_DIR, state_);
 
     }
 
@@ -99,7 +99,7 @@ public class Repository {
     }
 
     public void save() {
-        Utils.writeObject(STATE, state_);
+        Utils.writeObject(STATE_DIR, state_);
     }
 
     public void add(String filename) {
@@ -152,12 +152,13 @@ public class Repository {
     }
 
     public void rm(String filename) {
+        boolean is_staged = false;
         if (state_.addition_stage.containsKey(filename)) {
             String hash_of_file_to_rm = state_.addition_stage.get(filename);
             state_.addition_stage.remove(filename);
             File stage_of_file_to_rm = Utils.join(STAGE_DIR, hash_of_file_to_rm);
             stage_of_file_to_rm.delete();
-            return;
+            is_staged = true;
         }
 
         Commit head_commit = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
@@ -170,8 +171,10 @@ public class Repository {
             }
             return;
         }
-
-        Utils.message("No reason to remove the file.");
+        
+        if (!is_staged) {
+            Utils.message("No reason to remove the file.");
+        }
     }
 
     public void commit(String message, String second_parent_commit) {
@@ -186,10 +189,8 @@ public class Repository {
 
         Commit last_commit = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
         Commit new_commit = new Commit(message, last_commit.id_, second_parent_commit);
-        new_commit.tracked_ = new HashMap<>();
-        if (state_.commit_tree.size() > 1) {
-            new_commit.tracked_.putAll(last_commit.tracked_);
-        }
+        new_commit.tracked_ = new TreeMap<>();
+        new_commit.tracked_.putAll(last_commit.tracked_);
 
         for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
             File file_to_track = Utils.join(BLOB_DIR, entry.getValue());
@@ -272,7 +273,7 @@ public class Repository {
         System.out.println();
 
         Utils.message("=== Modifications Not Staged For Commit ===");
-        HashMap<String, String> tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
+        Map<String, String> tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
         List<String> modifications = new ArrayList<>();
         for (Map.Entry<String, String> entry : tracked_files.entrySet()) {
             String filename = entry.getKey();
@@ -330,7 +331,7 @@ public class Repository {
 
     public void checkout(String commit_id, String filename) {
         String id_to_checkout = findCommit(commit_id);
-        HashMap<String, String> tracked_files = state_.commit_tree.get(id_to_checkout).tracked_;
+        Map<String, String> tracked_files = state_.commit_tree.get(id_to_checkout).tracked_;
 
         if (!tracked_files.containsKey(filename)) {
             Utils.message("File does not exist in that commit.");
@@ -465,7 +466,7 @@ public class Repository {
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
                 File given_file = Utils.join(BLOB_DIR, given_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>\n");
                 add(split_point_filename);
             }
 
@@ -478,7 +479,7 @@ public class Repository {
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
                 File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n>>>>>>>\n");
                 add(split_point_filename);
             }
             if (current_branch_head.tracked_.containsKey(split_point_filename) && given_branch_head.tracked_.containsKey(split_point_filename)) {
@@ -522,7 +523,7 @@ public class Repository {
                 File cwd_file = Utils.join(CWD, filename);
                 File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(filename));
                 File given_file = Utils.join(BLOB_DIR, entry.getValue());
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>");
                 add(filename);
                 isConflicted = true;
             }
@@ -537,8 +538,8 @@ public class Repository {
     }
 
     private void readState() {
-        if (STATE.exists()) {
-            state_ = Utils.readObject(STATE, State.class); 
+        if (STATE_DIR.exists()) {
+            state_ = Utils.readObject(STATE_DIR, State.class); 
         }
     }
 
@@ -575,7 +576,7 @@ public class Repository {
     }
 
     private void checkoutCommit(String commit_id) {
-        HashMap<String, String> target_files = state_.commit_tree.get(commit_id).tracked_;
+        Map<String, String> target_files = state_.commit_tree.get(commit_id).tracked_;
 
         List<String> untracked_files = scanUntrackedFiles();
 
@@ -584,6 +585,11 @@ public class Repository {
                 Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
                 System.exit(0);
             }
+        }
+
+        for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
+            File addition_file = Utils.join(STAGE_DIR, entry.getValue());
+            addition_file.delete();
         }
 
         state_.addition_stage.clear();
@@ -596,7 +602,7 @@ public class Repository {
             Utils.writeContents(file_in_cwd, Utils.readContents(file));
         }
 
-        HashMap<String, String> current_tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
+        Map<String, String> current_tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
 
         for (Map.Entry<String, String> entry : current_tracked_files.entrySet()) {
             String filename = entry.getKey();

@@ -9,8 +9,6 @@ import java.io.Serializable;
  * @author D
  */
 public class State implements Serializable {
-    /** References of blobs. */
-    public HashMap<String, String> blob_references = new HashMap<>();
     /** Node tree of commits. */
     public HashMap<String, Commit> commit_tree = new HashMap<>();
     /** Addition stage. */

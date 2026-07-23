@@ -3,7 +3,7 @@ package gitlet;
 
 import java.io.Serializable;
 import java.util.Date;
-import java.util.HashMap;
+import java.util.TreeMap;
 import static gitlet.Utils.sha1;
 
 /** Represents a gitlet commit object.
@@ -36,7 +36,7 @@ public class Commit implements Serializable {
     public String id_;
 
     /** The tracked content of this commit. */
-    public HashMap<String, String> tracked_ = new HashMap<>();
+    public TreeMap<String, String> tracked_ = new TreeMap<>();
 
     public Commit(String message, String parent_commit, String second_parent_commit) {
         this.message_ = message;
