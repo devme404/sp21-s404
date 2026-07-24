@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat;
 import java.io.File;
 import java.util.*;
 import static gitlet.Utils.*;
+import static gitlet.BlobStore.*;
 
 
 /** Represents a gitlet repository.
@@ -11,7 +12,7 @@ import static gitlet.Utils.*;
  *
  *  @author D
  */
-public class Repository {
+class Repository {
     /**
      *
      * List all instance variables of the Repository class here with a useful
@@ -30,6 +31,10 @@ public class Repository {
 
     /** The state file. */
     public static final File STATE_DIR = join(GITLET_DIR, "state");
+
+    private static final BlobStore stage_store = new BlobStore(STAGE_DIR);
+
+    private static final BlobStore blob_store = new BlobStore(BLOB_DIR);
 
     /** The state of gitlet. */
     public State state_;
@@ -114,19 +119,17 @@ public class Repository {
             return;
         }
 
-        byte[] content_of_file_to_add = Utils.readContents(file_to_add);
-        String hash_of_file_to_add = Utils.sha1(filename, content_of_file_to_add);
+        byte[] content = Utils.readContents(file_to_add);
+        String hash = Utils.sha1(filename, content);
 
-        File stage_of_file_to_add = Utils.join(STAGE_DIR, hash_of_file_to_add);
         String tracked_hash, old_hash;
 
         if (state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.containsKey(filename)) {
             tracked_hash = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.get(filename);
-            if (tracked_hash.equals(hash_of_file_to_add)) {
+            if (tracked_hash.equals(hash)) {
                 if (state_.addition_stage.containsKey(filename)) {
                     old_hash = state_.addition_stage.get(filename);
-                    File old_stage_file = Utils.join(STAGE_DIR, old_hash);
-                    old_stage_file.delete();
+                    stage_store.delete(old_hash);
                     state_.addition_stage.remove(filename);
                 }
                 return;
@@ -134,30 +137,28 @@ public class Repository {
         }
 
         if (!state_.addition_stage.containsKey(filename)) {
-            Utils.writeContents(stage_of_file_to_add, content_of_file_to_add);
-            state_.addition_stage.put(filename, hash_of_file_to_add);
+            stage_store.store(hash, content);
+            state_.addition_stage.put(filename, hash);
             return;
         }
 
 
         old_hash = state_.addition_stage.get(filename);
-        if (old_hash.equals(hash_of_file_to_add)) {
+        if (old_hash.equals(hash)) {
             return;
         }
 
-        Utils.writeContents(stage_of_file_to_add, content_of_file_to_add);
-        File old_stage_file = Utils.join(STAGE_DIR, old_hash);
-        old_stage_file.delete();
-        state_.addition_stage.put(filename, hash_of_file_to_add);
+        stage_store.store(hash, content);
+        stage_store.delete(old_hash);
+        state_.addition_stage.put(filename, hash);
     }
 
     public void rm(String filename) {
         boolean is_staged = false;
         if (state_.addition_stage.containsKey(filename)) {
-            String hash_of_file_to_rm = state_.addition_stage.get(filename);
+            String hash = state_.addition_stage.get(filename);
             state_.addition_stage.remove(filename);
-            File stage_of_file_to_rm = Utils.join(STAGE_DIR, hash_of_file_to_rm);
-            stage_of_file_to_rm.delete();
+            stage_store.delete(hash);
             is_staged = true;
         }
 
@@ -193,13 +194,12 @@ public class Repository {
         new_commit.tracked_.putAll(last_commit.tracked_);
 
         for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
-            File file_to_track = Utils.join(BLOB_DIR, entry.getValue());
-            File stage_of_file_to_track = Utils.join(STAGE_DIR, entry.getValue());
+            String hash = entry.getValue();
 
             new_commit.tracked_.put(entry.getKey(), entry.getValue());
 
-            Utils.writeContents(file_to_track, Utils.readContents(stage_of_file_to_track));
-            stage_of_file_to_track.delete();
+            blob_store.store(hash, stage_store.load(hash));
+            stage_store.delete(hash);
         }
         state_.addition_stage.clear();
 
@@ -338,9 +338,8 @@ public class Repository {
             System.exit(0);
         }
 
-        File file_to_checkout = Utils.join(BLOB_DIR, tracked_files.get(filename));
         File file_to_checkout_in_cwd = Utils.join(CWD, filename);
-        Utils.writeContents(file_to_checkout_in_cwd, Utils.readContents(file_to_checkout));
+        Utils.writeContents(file_to_checkout_in_cwd, blob_store.load(tracked_files.get(filename)));
     }
 
     public void checkoutBranch(String branch) {
@@ -465,8 +464,7 @@ public class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                File given_file = Utils.join(BLOB_DIR, given_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + blob_store.load(given_branch_head.tracked_.get(split_point_filename)) + "\n>>>>>>>\n");
                 add(split_point_filename);
             }
 
@@ -478,8 +476,7 @@ public class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(split_point_filename)) + "\n=======\n>>>>>>>\n");
                 add(split_point_filename);
             }
             if (current_branch_head.tracked_.containsKey(split_point_filename) && given_branch_head.tracked_.containsKey(split_point_filename)) {
@@ -495,9 +492,7 @@ public class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(split_point_filename));
-                File given_file = Utils.join(BLOB_DIR, given_branch_head.tracked_.get(split_point_filename));
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "=======\n" + Utils.readContentsAsString(given_file) + ">>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(split_point_filename)) + "=======\n" + blob_store.load(given_branch_head.tracked_.get(split_point_filename)) + ">>>>>>>\n");
                 add(split_point_filename);
             }
         }
@@ -521,9 +516,7 @@ public class Repository {
                 }
                 
                 File cwd_file = Utils.join(CWD, filename);
-                File current_file = Utils.join(BLOB_DIR, current_branch_head.tracked_.get(filename));
-                File given_file = Utils.join(BLOB_DIR, entry.getValue());
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + Utils.readContentsAsString(current_file) + "\n=======\n" + Utils.readContentsAsString(given_file) + "\n>>>>>>>");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(filename)) + "\n=======\n" + blob_store.load(entry.getValue()) + "\n>>>>>>>");
                 add(filename);
                 isConflicted = true;
             }
@@ -588,8 +581,7 @@ public class Repository {
         }
 
         for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
-            File addition_file = Utils.join(STAGE_DIR, entry.getValue());
-            addition_file.delete();
+            stage_store.delete(entry.getValue());
         }
 
         state_.addition_stage.clear();
@@ -597,9 +589,8 @@ public class Repository {
 
         for (Map.Entry<String, String> entry : target_files.entrySet()) {
             String filename = entry.getKey();
-            File file = Utils.join(BLOB_DIR, entry.getValue());
             File file_in_cwd = Utils.join(CWD, filename);
-            Utils.writeContents(file_in_cwd, Utils.readContents(file));
+            Utils.writeContents(file_in_cwd, blob_store.load(entry.getValue()));
         }
 
         Map<String, String> current_tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
