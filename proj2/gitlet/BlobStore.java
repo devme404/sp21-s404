@@ -22,6 +22,12 @@ public class BlobStore {
         return null;
     }
 
+    public String loadString(String hash) {
+        byte[] data = load(hash);
+        if (data == null) return "";
+        return new String(data, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     public boolean contains(String hash) {
         File file = Utils.join(WORK_DIR, hash);
         return file.exists();

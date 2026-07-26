@@ -1,10 +1,11 @@
 package gitlet;
 
-import java.text.SimpleDateFormat;
 import java.io.File;
 import java.util.*;
 import static gitlet.Utils.*;
 import static gitlet.BlobStore.*;
+import static gitlet.Stage.*;
+import static gitlet.CommitTree.*;
 
 
 /** Represents a gitlet repository.
@@ -29,18 +30,21 @@ class Repository {
     /** The blob directory. */
     public static final File BLOB_DIR = join(GITLET_DIR, "blob");
 
-    /** The state file. */
-    public static final File STATE_DIR = join(GITLET_DIR, "state");
+    public static final File STAGE = join(GITLET_DIR, "stage-meta");
+
+    public static final File COMMIT_TREE = join(GITLET_DIR, "commit-tree");
+
+    public static final File REFERENCES = join(GITLET_DIR, "references");
 
     private static final BlobStore stage_store = new BlobStore(STAGE_DIR);
 
     private static final BlobStore blob_store = new BlobStore(BLOB_DIR);
 
-    /** The state of gitlet. */
-    public State state_;
+    private static Stage stage_;
 
-    /** The name of HEAD commit pointer. */
-    private static final String HEAD_POINTER = "HEAD";
+    private static CommitTree commit_tree_;
+
+    private static References references_;
 
 
     public Repository() {
@@ -52,15 +56,17 @@ class Repository {
             Utils.message("A Gitlet version-control system already exists in the current directory.");
             System.exit(0);
         }
-        state_ = new State();
+        stage_ = new Stage();
+        commit_tree_ = new CommitTree();
+        references_ = new References(commit_tree_);
 
         GITLET_DIR.mkdir();
         STAGE_DIR.mkdir();
         BLOB_DIR.mkdir();
 
-        state_.init();
-        Utils.writeObject(STATE_DIR, state_);
-
+        Utils.writeObject(STAGE, stage_);
+        Utils.writeObject(COMMIT_TREE, commit_tree_);
+        Utils.writeObject(REFERENCES, references_);
     }
 
     public void check() {
@@ -73,43 +79,46 @@ class Repository {
     }
 
     public void log() {
-        Commit commit_ptr = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
+        Commit commit_ptr = commit_tree_.getCommit(references_.getHEAD());
 
-        while (!commit_ptr.parent_commit_.equals("")) {
+        while (!commit_ptr.isInitialCommit()) {
             String commit_info;
-            if (commit_ptr.second_parent_commit_.isEmpty()) {
-                commit_info = commitToString(commit_ptr);
+            if (!commit_ptr.isMergeCommit()) {
+                commit_info = commit_ptr.toString();
             } else {
-                commit_info = mergeCommitToString(commit_ptr);
+                commit_info = commit_ptr.toString();
             }
             Utils.message(commit_info);
-            commit_ptr = state_.commit_tree.get(commit_ptr.parent_commit_);
+            commit_ptr = commit_tree_.getCommit(commit_ptr.getParentID());
         }
 
-        String commit_info = commitToString(commit_ptr);
+        String commit_info = commit_ptr.toString();
         Utils.message(commit_info);
     }
 
     public void globalLog() {
-        for (Map.Entry<String, Commit> entry : state_.commit_tree.entrySet()) {
+        Map<String, Commit> commit_tree = commit_tree_.getCommitTree();
+        for (Map.Entry<String, Commit> entry : commit_tree.entrySet()) {
             Commit commit = entry.getValue();
             String commit_info;
-            if (commit.second_parent_commit_.isEmpty()) {
-                commit_info = commitToString(commit);
+            if (!commit.isMergeCommit()) {
+                commit_info = commit.toString();
             } else {
-                commit_info = mergeCommitToString(commit);
+                commit_info = commit.toString();
             }
             Utils.message(commit_info);
         }
     }
 
     public void save() {
-        Utils.writeObject(STATE_DIR, state_);
+        Utils.writeObject(STAGE, stage_);
+        Utils.writeObject(COMMIT_TREE, commit_tree_);
+        Utils.writeObject(REFERENCES, references_);
     }
 
     public void add(String filename) {
-        if (state_.deletion_stage.containsKey(filename)) {
-            state_.deletion_stage.remove(filename);
+        if (stage_.isStagedRemoval(filename)) {
+            stage_.unstageRemoval(filename);
             return;
         }
 
@@ -124,47 +133,47 @@ class Repository {
 
         String tracked_hash, old_hash;
 
-        if (state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.containsKey(filename)) {
-            tracked_hash = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.get(filename);
+        if (commit_tree_.getCommit(references_.getHEAD()).getTracked().containsKey(filename)) {
+            tracked_hash = commit_tree_.getCommit(references_.getHEAD()).getTracked().get(filename);
             if (tracked_hash.equals(hash)) {
-                if (state_.addition_stage.containsKey(filename)) {
-                    old_hash = state_.addition_stage.get(filename);
+                if (stage_.isStagedAddition(filename)) {
+                    old_hash = stage_.getAddition(filename);
                     stage_store.delete(old_hash);
-                    state_.addition_stage.remove(filename);
+                    stage_.unstageAddition(filename);
                 }
                 return;
             }
         }
 
-        if (!state_.addition_stage.containsKey(filename)) {
+        if (!stage_.isStagedAddition(filename)) {
             stage_store.store(hash, content);
-            state_.addition_stage.put(filename, hash);
+            stage_.stageAddition(filename, hash);
             return;
         }
 
 
-        old_hash = state_.addition_stage.get(filename);
+        old_hash = stage_.getAddition(filename);
         if (old_hash.equals(hash)) {
             return;
         }
 
         stage_store.store(hash, content);
         stage_store.delete(old_hash);
-        state_.addition_stage.put(filename, hash);
+        stage_.stageAddition(filename, hash);
     }
 
     public void rm(String filename) {
         boolean is_staged = false;
-        if (state_.addition_stage.containsKey(filename)) {
-            String hash = state_.addition_stage.get(filename);
-            state_.addition_stage.remove(filename);
+        if (stage_.isStagedAddition(filename)) {
+            String hash = stage_.getAddition(filename);
+            stage_.unstageAddition(filename);
             stage_store.delete(hash);
             is_staged = true;
         }
 
-        Commit head_commit = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
-        if (head_commit.tracked_.containsKey(filename)) {
-            state_.deletion_stage.put(filename, head_commit.tracked_.get(filename));
+        Commit head_commit = commit_tree_.getCommit(references_.getHEAD());
+        if (head_commit.getTracked().containsKey(filename)) {
+            stage_.stageRemoval(filename, head_commit.getTracked().get(filename));
             
             File file_to_rm = Utils.join(CWD, filename);
             if (file_to_rm.exists()) {
@@ -183,66 +192,55 @@ class Repository {
             Utils.message("Please enter a commit message.");
             System.exit(0);
         }
-        if (state_.addition_stage.isEmpty() && state_.deletion_stage.isEmpty()) {
+        if (stage_.isAdditionEmpty() && stage_.isRemovalEmpty()) {
             Utils.message("No changes added to the commit.");
             return;
         }
 
-        Commit last_commit = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
-        Commit new_commit = new Commit(message, last_commit.id_, second_parent_commit);
-        new_commit.tracked_ = new TreeMap<>();
-        new_commit.tracked_.putAll(last_commit.tracked_);
+        Commit last_commit = commit_tree_.getCommit(references_.getHEAD());
+        Map<String, String> tracked = new TreeMap<String, String>();
+        tracked.putAll(last_commit.getTracked());
 
-        for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
+        Map<String, String> addition_stage = stage_.getAdditions();
+        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
             String hash = entry.getValue();
 
-            new_commit.tracked_.put(entry.getKey(), entry.getValue());
+            tracked.put(entry.getKey(), entry.getValue());
 
             blob_store.store(hash, stage_store.load(hash));
             stage_store.delete(hash);
         }
-        state_.addition_stage.clear();
+        stage_.clearAddition();
 
-        for (Map.Entry<String, String> entry : state_.deletion_stage.entrySet()) {
-            new_commit.tracked_.remove(entry.getKey());
+        Map<String, String> deletion_stage = stage_.getRemovals();
+        for (Map.Entry<String, String> entry : deletion_stage.entrySet()) {
+            tracked.remove(entry.getKey());
         }
-        state_.deletion_stage.clear();
+        stage_.clearRemoval();
 
+        Commit new_commit = new Commit(message, last_commit.getID(), second_parent_commit, tracked);
         new_commit.updateID();
 
-        state_.commit_tree.put(new_commit.id_, new_commit);
+        commit_tree_.addCommit(new_commit.getID(), new_commit);
 
-        state_.pointers_.put(HEAD_POINTER, new_commit.id_);
-        state_.pointers_.put(state_.branch_, new_commit.id_);
+        references_.updateHEAD(new_commit.getID());
+        references_.updatePointer(references_.getBranch(), new_commit.getID());
     }
 
     public void find(String message) {
-        boolean found = false;
-        for (Map.Entry<String, Commit> entry : state_.commit_tree.entrySet()) {
-            Commit commit = entry.getValue();
-            if (commit.message_.equals(message)) {
-                Utils.message(commit.id_);
-                found = true;
-            }
-        }
-        if (!found) {
+        String result = commit_tree_.findCommit(message);
+        if (result.equals("")) {
             Utils.message("Found no commit with that message.");
+        } else {
+            Utils.message(result);
         }
     }
 
     public void status() {
         Utils.message("=== Branches ===");
-        List<String> branches = new ArrayList<>();
-        for (Map.Entry<String, String> entry : state_.pointers_.entrySet()) {
-            String branch = entry.getKey();
-            if (branch.equals(HEAD_POINTER)) {
-                continue;
-            }
-            branches.add(branch);
-        }
-        Collections.sort(branches);
+        List<String> branches = references_.getBranches();
         for (String branch : branches) {
-            if (branch.equals(state_.branch_)) {
+            if (branch.equals(references_.getBranch())) {
                 Utils.message("*" + branch);
                 continue;
             }
@@ -252,7 +250,8 @@ class Repository {
 
         Utils.message("=== Staged Files ===");
         List<String> staged_files = new ArrayList<>();
-        for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
+        Map<String, String> addition_stage = stage_.getAdditions();
+        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
             staged_files.add(entry.getKey());
         }
         Collections.sort(staged_files);
@@ -263,7 +262,8 @@ class Repository {
 
         Utils.message("=== Removed Files ===");
         List<String> removed_files = new ArrayList<>();
-        for (Map.Entry<String, String> entry : state_.deletion_stage.entrySet()) {
+        Map<String, String> deletion_stage = stage_.getRemovals();
+        for (Map.Entry<String, String> entry : deletion_stage.entrySet()) {
             removed_files.add(entry.getKey());
         }
         Collections.sort(removed_files);
@@ -273,11 +273,11 @@ class Repository {
         System.out.println();
 
         Utils.message("=== Modifications Not Staged For Commit ===");
-        Map<String, String> tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
+        Map<String, String> tracked_files = commit_tree_.getCommit(references_.getHEAD()).getTracked();
         List<String> modifications = new ArrayList<>();
         for (Map.Entry<String, String> entry : tracked_files.entrySet()) {
             String filename = entry.getKey();
-            if (state_.addition_stage.containsKey(filename)) {
+            if (stage_.isStagedAddition(filename)) {
                 continue;
             }
             
@@ -289,13 +289,13 @@ class Repository {
                     modifications.add(filename + " (modified)");
                 }
             } else {
-                if (!state_.deletion_stage.containsKey(filename)) {
+                if (!stage_.isStagedRemoval(filename)) {
                     modifications.add(filename + " (deleted)");
                 }
             }
         }
 
-        for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
+        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
             String filename = entry.getKey();
 
             File file = Utils.join(CWD, filename);
@@ -326,12 +326,12 @@ class Repository {
     }
 
     public void checkout(String filename) {
-        checkout(state_.pointers_.get(HEAD_POINTER), filename);
+        checkout(references_.getHEAD(), filename);
     }
 
     public void checkout(String commit_id, String filename) {
         String id_to_checkout = findCommit(commit_id);
-        Map<String, String> tracked_files = state_.commit_tree.get(id_to_checkout).tracked_;
+        Map<String, String> tracked_files = commit_tree_.getCommit(id_to_checkout).getTracked();
 
         if (!tracked_files.containsKey(filename)) {
             Utils.message("File does not exist in that commit.");
@@ -343,81 +343,81 @@ class Repository {
     }
 
     public void checkoutBranch(String branch) {
-        if (!state_.pointers_.containsKey(branch)) {
+        if (!references_.hasPointer(branch)) {
             Utils.message("No such branch exists.");
             System.exit(0);
         }
         
-        if (state_.branch_.equals(branch)) {
+        if (references_.getBranch().equals(branch)) {
             Utils.message("No need to checkout the current branch.");
             System.exit(0);
         }
 
-        checkoutCommit(state_.pointers_.get(branch));
+        checkoutCommit(references_.getPointer(branch));
 
-        state_.branch_ = branch;
-        state_.pointers_.put(HEAD_POINTER, state_.pointers_.get(branch));
+        references_.updateBranch(branch);
+        references_.updateHEAD(references_.getPointer(branch));
     }
 
     public void branch(String branch_name) {
-        if (state_.pointers_.containsKey(branch_name)) {
+        if (references_.hasPointer(branch_name)) {
             Utils.message("A branch with that name already exists.");
             System.exit(0);
         }
 
-        state_.pointers_.put(branch_name, state_.pointers_.get(HEAD_POINTER));
+        references_.updatePointer(branch_name, references_.getHEAD());
     }
 
     public void rmBranch(String branch_name) {
-        if (!state_.pointers_.containsKey(branch_name)) {
+        if (!references_.hasPointer(branch_name)) {
             Utils.message("A branch with that name does not exist.");
             System.exit(0);
         }
         
-        if (state_.branch_.equals(branch_name)) {
+        if (references_.getBranch().equals(branch_name)) {
             Utils.message("Cannot remove the current branch.");
             System.exit(0);
         }
 
-        state_.pointers_.remove(branch_name);
+        references_.removePointer(branch_name);
     }
 
     public void reset(String commit_id) {
         String id_to_reset = findCommit(commit_id);
         checkoutCommit(id_to_reset);
-        state_.pointers_.put(HEAD_POINTER, id_to_reset);
-        state_.pointers_.put(state_.branch_, id_to_reset);
+        references_.updateHEAD(id_to_reset);
+        references_.updatePointer(references_.getBranch(), id_to_reset);
     }
 
     public void merge(String branch) {
-        if (state_.branch_.equals(branch)) {
+        if (references_.getBranch().equals(branch)) {
             Utils.message("Cannot merge a branch with itself.");
             System.exit(0);
         }
 
-        if (!state_.pointers_.containsKey(branch)) {
+        if (!references_.hasPointer(branch)) {
             Utils.message("A branch with that name does not exist.");
             System.exit(0);
         }
 
 
-        if (!state_.addition_stage.isEmpty() || !state_.deletion_stage.isEmpty()) {
+        if (!stage_.isAdditionEmpty() || !stage_.isRemovalEmpty()) {
             Utils.message("You have uncommitted changes.");
             System.exit(0);
         }
 
 
-        Commit given_branch_head = state_.commit_tree.get(state_.pointers_.get(branch));
-        Commit current_branch_head = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER));
+        Commit given_branch_head = commit_tree_.getCommit(references_.getPointer(branch));
+        Commit current_branch_head = commit_tree_.getCommit(references_.getHEAD());
 
-        Commit split_point = state_.commit_tree.get(findSplitPoint(current_branch_head.id_, given_branch_head.id_));
+        Commit split_point = commit_tree_.getCommit(findSplitPoint(current_branch_head.getID(), given_branch_head.getID()));
 
-        if (split_point.id_.equals(given_branch_head.id_)) {
+        if (split_point.getID().equals(given_branch_head.getID())) {
             Utils.message("Given branch is an ancestor of the current branch.");
             System.exit(0);
         }
         
-        if (split_point.id_.equals(current_branch_head.id_)) {
+        if (split_point.getID().equals(current_branch_head.getID())) {
             checkoutBranch(branch);
             Utils.message("Current branch fast-forwarded.");
             return;
@@ -427,36 +427,36 @@ class Repository {
 
         boolean isConflicted = false;
 
-        for (Map.Entry<String, String> entry : split_point.tracked_.entrySet()) {
+        for (Map.Entry<String, String> entry : split_point.getTracked().entrySet()) {
             String split_point_filename = entry.getKey();
             String split_point_hash = entry.getValue();
 
-            if (!given_branch_head.tracked_.containsKey(split_point_filename) && !current_branch_head.tracked_.containsKey(split_point_filename)) {
+            if (!given_branch_head.getTracked().containsKey(split_point_filename) && !current_branch_head.getTracked().containsKey(split_point_filename)) {
                 continue;
             }
 
-            if (given_branch_head.tracked_.containsKey(split_point_filename) && given_branch_head.tracked_.get(split_point_filename).equals(split_point_hash)) {
+            if (given_branch_head.getTracked().containsKey(split_point_filename) && given_branch_head.getTracked().get(split_point_filename).equals(split_point_hash)) {
                 continue;
             }
 
 
-            if (current_branch_head.tracked_.containsKey(split_point_filename) && current_branch_head.tracked_.get(split_point_filename).equals(split_point_hash)) {
+            if (current_branch_head.getTracked().containsKey(split_point_filename) && current_branch_head.getTracked().get(split_point_filename).equals(split_point_hash)) {
                 if (untracked_files.contains(split_point_filename)) {
                     Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
                     System.exit(0);
                 }
 
-                if (!given_branch_head.tracked_.containsKey(split_point_filename)) {
+                if (!given_branch_head.getTracked().containsKey(split_point_filename)) {
                     rm(split_point_filename);
                     continue;
                 }
 
-                checkout(given_branch_head.id_, split_point_filename);
+                checkout(given_branch_head.getID(), split_point_filename);
                 add(split_point_filename);
                 continue;
             }
 
-            if (!current_branch_head.tracked_.containsKey(split_point_filename)) {
+            if (!current_branch_head.getTracked().containsKey(split_point_filename)) {
                 if (untracked_files.contains(split_point_filename)) {
                     Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
                     System.exit(0);
@@ -464,11 +464,11 @@ class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + blob_store.load(given_branch_head.tracked_.get(split_point_filename)) + "\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + blob_store.loadString(given_branch_head.getTracked().get(split_point_filename)) + "\n>>>>>>>\n");
                 add(split_point_filename);
             }
 
-            if (!given_branch_head.tracked_.containsKey(split_point_filename)) {
+            if (!given_branch_head.getTracked().containsKey(split_point_filename)) {
                 if (untracked_files.contains(split_point_filename)) {
                     Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
                     System.exit(0);
@@ -476,11 +476,11 @@ class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(split_point_filename)) + "\n=======\n>>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.loadString(current_branch_head.getTracked().get(split_point_filename)) + "\n=======\n>>>>>>>\n");
                 add(split_point_filename);
             }
-            if (current_branch_head.tracked_.containsKey(split_point_filename) && given_branch_head.tracked_.containsKey(split_point_filename)) {
-                if (current_branch_head.tracked_.get(split_point_filename).equals(given_branch_head.tracked_.get(split_point_filename))) {
+            if (current_branch_head.getTracked().containsKey(split_point_filename) && given_branch_head.getTracked().containsKey(split_point_filename)) {
+                if (current_branch_head.getTracked().get(split_point_filename).equals(given_branch_head.getTracked().get(split_point_filename))) {
                     continue;
                 }
 
@@ -492,15 +492,15 @@ class Repository {
 
                 isConflicted = true;
                 File cwd_file = Utils.join(CWD, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(split_point_filename)) + "=======\n" + blob_store.load(given_branch_head.tracked_.get(split_point_filename)) + ">>>>>>>\n");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.loadString(current_branch_head.getTracked().get(split_point_filename)) + "=======\n" + blob_store.loadString(given_branch_head.getTracked().get(split_point_filename)) + ">>>>>>>\n");
                 add(split_point_filename);
             }
         }
 
-        for (Map.Entry<String, String> entry : given_branch_head.tracked_.entrySet()) {
+        for (Map.Entry<String, String> entry : given_branch_head.getTracked().entrySet()) {
             String filename = entry.getKey();
-            if (!split_point.tracked_.containsKey(filename)) {
-                if (current_branch_head.tracked_.containsKey(filename) && current_branch_head.tracked_.get(filename).equals(entry.getValue())) {
+            if (!split_point.getTracked().containsKey(filename)) {
+                if (current_branch_head.getTracked().containsKey(filename) && current_branch_head.getTracked().get(filename).equals(entry.getValue())) {
                     continue;
                 }
 
@@ -509,14 +509,14 @@ class Repository {
                     System.exit(0);
                 }
 
-                if (!current_branch_head.tracked_.containsKey(filename)) {
-                    checkout(given_branch_head.id_, filename);
+                if (!current_branch_head.getTracked().containsKey(filename)) {
+                    checkout(given_branch_head.getID(), filename);
                     add(filename);
                     continue;
                 }
                 
                 File cwd_file = Utils.join(CWD, filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.load(current_branch_head.tracked_.get(filename)) + "\n=======\n" + blob_store.load(entry.getValue()) + "\n>>>>>>>");
+                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + blob_store.loadString(current_branch_head.getTracked().get(filename)) + "\n=======\n" + blob_store.loadString(entry.getValue()) + "\n>>>>>>>");
                 add(filename);
                 isConflicted = true;
             }
@@ -526,30 +526,26 @@ class Repository {
         }
 
 
-        commit("Merged " + branch + " into " + state_.branch_ + ".", given_branch_head.id_);
+        commit("Merged " + branch + " into " + references_.getBranch() + ".", given_branch_head.getID());
 
     }
 
     private void readState() {
-        if (STATE_DIR.exists()) {
-            state_ = Utils.readObject(STATE_DIR, State.class); 
+        if (STAGE.exists()) {
+            stage_ = Utils.readObject(STAGE, Stage.class);
         }
-    }
-
-    private String commitToString(Commit commit) {
-        SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
-        return String.format("===\ncommit %s\nDate: %s\n%s\n", commit.id_, sdf.format(commit.date_and_time_), commit.message_);
-
-    }
-
-    private String mergeCommitToString(Commit commit) {
-        SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
-        return String.format("===\ncommit %s\nMerge: %.7s %.7s\nDate: %s\n%s\n", commit.id_, commit.parent_commit_, commit.second_parent_commit_, sdf.format(commit.date_and_time_), commit.message_);
+        if (COMMIT_TREE.exists()) {
+            commit_tree_ = Utils.readObject(COMMIT_TREE, CommitTree.class);
+        }
+        if (REFERENCES.exists()) {
+            references_ = Utils.readObject(REFERENCES, References.class);
+        }
     }
 
     private List<String> scanUntrackedFiles() {
         List<String> files = new ArrayList<>();
-        for (Map.Entry<String, String> entry : state_.deletion_stage.entrySet()) {
+        Map<String, String> deletion_stage = stage_.getRemovals();
+        for (Map.Entry<String, String> entry : deletion_stage.entrySet()) {
             String filename = entry.getKey();
             File file = Utils.join(CWD, filename);
             if (file.exists()) {
@@ -559,7 +555,7 @@ class Repository {
         
         List<String> files_in_cwd = Utils.plainFilenamesIn(CWD);
         for (String filename : files_in_cwd) {
-            if (!state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_.containsKey(filename) && !state_.addition_stage.containsKey(filename)) {
+            if (!commit_tree_.getCommit(references_.getHEAD()).getTracked().containsKey(filename) && !stage_.isStagedAddition(filename)) {
                 files.add(filename);
             }
         }
@@ -569,7 +565,7 @@ class Repository {
     }
 
     private void checkoutCommit(String commit_id) {
-        Map<String, String> target_files = state_.commit_tree.get(commit_id).tracked_;
+        Map<String, String> target_files = commit_tree_.getCommit(commit_id).getTracked();
 
         List<String> untracked_files = scanUntrackedFiles();
 
@@ -580,12 +576,13 @@ class Repository {
             }
         }
 
-        for (Map.Entry<String, String> entry : state_.addition_stage.entrySet()) {
+        Map<String, String> addition_stage = stage_.getAdditions();
+        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
             stage_store.delete(entry.getValue());
         }
 
-        state_.addition_stage.clear();
-        state_.deletion_stage.clear();
+        stage_.clearAddition();
+        stage_.clearRemoval();
 
         for (Map.Entry<String, String> entry : target_files.entrySet()) {
             String filename = entry.getKey();
@@ -593,7 +590,7 @@ class Repository {
             Utils.writeContents(file_in_cwd, blob_store.load(entry.getValue()));
         }
 
-        Map<String, String> current_tracked_files = state_.commit_tree.get(state_.pointers_.get(HEAD_POINTER)).tracked_;
+        Map<String, String> current_tracked_files = commit_tree_.getCommit(references_.getHEAD()).getTracked();
 
         for (Map.Entry<String, String> entry : current_tracked_files.entrySet()) {
             String filename = entry.getKey();
@@ -606,26 +603,13 @@ class Repository {
         }
     }
 
-    private String findCommit(String commit_id) {
-        boolean found = false;
-        String id_to_checkout = commit_id;
-        for (Map.Entry<String, Commit> entry : state_.commit_tree.entrySet()) {
-            if (entry.getKey().startsWith(commit_id)) {
-                id_to_checkout = entry.getValue().id_;
-                found = true;
-                break;
-            } 
-
-            if (entry.getKey().equals(commit_id)) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
+    private String findCommit(String text) {
+        String result = commit_tree_.matchCommit(text);
+        if (result.equals("")) {
             Utils.message("No commit with that id exists.");
             System.exit(0);
         }
-        return id_to_checkout;
+        return result;
     }
 
 
@@ -639,15 +623,15 @@ class Repository {
         while (!queue.isEmpty()) {
             String id = queue.remove();
             Integer parent_distance = distances.get(id) + 1;
-            Commit curr_commit = state_.commit_tree.get(id);
-            String first_parent = curr_commit.parent_commit_;
-            String second_parent = curr_commit.second_parent_commit_;
+            Commit curr_commit = commit_tree_.getCommit(id);
+            String first_parent = curr_commit.getParentID();
+            String second_parent = curr_commit.getSecondParentID();
 
-            if (!first_parent.equals("") && !distances.containsKey(first_parent)) {
+            if (!first_parent.isEmpty() && !distances.containsKey(first_parent)) {
                 queue.add(first_parent);
                 distances.put(first_parent, parent_distance);
             }
-            if (!second_parent.equals("") && !distances.containsKey(second_parent)) {
+            if (!second_parent.isEmpty() && !distances.containsKey(second_parent)) {
                 queue.add(second_parent);
                 distances.put(second_parent, parent_distance);
             }
