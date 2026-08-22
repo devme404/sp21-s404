@@ -91,12 +91,11 @@ public class Commit implements Serializable {
     }
 
     public String toString() {
-        if (second_parent_ != "") {
+        if (!second_parent_.equals("")) {
             SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
             return String.format("===\ncommit %s\nMerge: %.7s %.7s\nDate: %s\n%s\n", id_, parent_, second_parent_, sdf.format(timestamp_), message_);
         }
         SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
         return String.format("===\ncommit %s\nDate: %s\n%s\n", id_, sdf.format(timestamp_), message_);
     }
-
 }

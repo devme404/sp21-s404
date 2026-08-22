@@ -10,15 +10,9 @@ public class References implements Serializable {
     public HashMap<String, String> pointers_ = new HashMap<>();
     public String branch_ = DEFAULT_BRANCH;
 
-    public References(CommitTree commit_tree) {
-        Map<String, Commit> commits = commit_tree.getCommitTree();
-        for (Map.Entry<String, Commit> entry : commits.entrySet()) {
-            if (entry.getValue().isInitialCommit()) {
-                String id = entry.getValue().getID();
-                pointers_.put(HEAD, id);
-                pointers_.put(DEFAULT_BRANCH, id);
-            }
-        }
+    public References(String id) {
+        updateHEAD(id);
+        updatePointer(DEFAULT_BRANCH, id);
     }
 
     public String getHEAD() {

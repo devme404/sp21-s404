@@ -5,16 +5,7 @@ import java.util.*;
 import gitlet.Commit.*;
 
 public class CommitTree implements Serializable {
-    public HashMap<String, Commit> commit_tree_ = new HashMap<String, Commit>();
-
-    public CommitTree() {
-        Map<String, String> tracked = new TreeMap<String, String>();
-        Commit initial_commit = new Commit("initial commit", "", "", tracked);
-        initial_commit.initialDateTime();
-        initial_commit.updateID();
-        commit_tree_.put(initial_commit.getID(), initial_commit);
-    }
-
+    public HashMap<String, Commit> commit_tree_ = new HashMap<>();
     public Commit getCommit(String id) {
         return commit_tree_.get(id);
     }
