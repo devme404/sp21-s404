@@ -55,7 +55,7 @@ public class Commit implements Serializable {
     }
 
     public void updateID() {
-        id_ = Utils.sha1(this.timestamp_.toString(), this.message_, this.parent_, this.second_parent_, this.tracked_.toString());
+        id_ = Utils.sha1(String.valueOf(this.timestamp_.getTime()), this.message_, this.parent_, this.second_parent_, this.tracked_.toString());
     }
 
     public String getParentID() {

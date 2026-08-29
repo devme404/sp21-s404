@@ -19,7 +19,7 @@ class AddCommand {
         }
 
         byte[] content = Utils.readContents(file_to_add);
-        String hash = Utils.sha1(filename, content);
+        String hash = Utils.sha1(content);
 
         String tracked_hash, old_hash;
 

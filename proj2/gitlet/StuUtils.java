@@ -91,4 +91,34 @@ class StuUtils {
         
         throw Utils.error("There should be a split point between these two commits.");
     }
+
+    static void transfer(Context src, Context dest, String start) {
+        Queue<String> queue = new LinkedList<>();
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            String curr = queue.remove();
+            if (curr.isEmpty() || dest.commit_tree.hasCommit(curr)) {
+                continue;
+            }
+
+            Commit curr_commit = src.commit_tree.getCommit(curr);
+            dest.commit_tree.addCommit(curr, curr_commit);
+
+            Map<String, String> tracked = curr_commit.getTracked();
+            for (Map.Entry<String, String> entry : tracked.entrySet()) {
+                String hash = entry.getValue();
+                if (dest.blob_store.contains(hash)) {
+                    continue;
+                }
+                dest.blob_store.store(hash, src.blob_store.load(hash));
+            }
+
+            if (!curr_commit.getParentID().isEmpty()) {
+                queue.add(curr_commit.getParentID());
+            }
+            if (curr_commit.isMergeCommit()) {
+                queue.add(curr_commit.getSecondParentID());
+            }
+        }
+    }
 }

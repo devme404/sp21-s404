@@ -10,6 +10,10 @@ public class CommitTree implements Serializable {
         return commit_tree_.get(id);
     }
 
+    public boolean hasCommit(String id) {
+        return commit_tree_.containsKey(id);
+    }
+
     public void addCommit(String id, Commit commit) {
         commit_tree_.put(id, commit);
     }

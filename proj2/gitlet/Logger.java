@@ -64,7 +64,7 @@ public class Logger {
             File file = Utils.join(context.cwd, filename);
             if (file.exists()) {
                 byte[] content_of_file_in_cwd = readContents(file);
-                String hash_of_file_in_cwd = Utils.sha1(filename, content_of_file_in_cwd);
+                String hash_of_file_in_cwd = Utils.sha1(content_of_file_in_cwd);
                 if (!hash_of_file_in_cwd.equals(entry.getValue())) {
                     modifications.add(filename + " (modified)");
                 }
@@ -81,7 +81,7 @@ public class Logger {
             File file = Utils.join(context.cwd, filename);
             if (file.exists()) {
                 byte[] content_of_file_in_cwd = Utils.readContents(file);
-                String hash_of_file_in_cwd = Utils.sha1(filename, content_of_file_in_cwd);
+                String hash_of_file_in_cwd = Utils.sha1(content_of_file_in_cwd);
                 if (!hash_of_file_in_cwd.equals(entry.getValue())) {
                     modifications.add(filename + " (modified)");
                 }

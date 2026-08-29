@@ -9,17 +9,24 @@ import static gitlet.CheckoutCommand.*;
 import gitlet.Context;
 
 class MergeCommand {
-    static void merge(String branch, Context context) {
-        if (context.references.getBranch().equals(branch)) {
-            Utils.message("Cannot merge a branch with itself.");
-            System.exit(0);
-        }
+    static void resolveConflict(Context context, String filename, Commit current, Commit given) {
+        File f = Utils.join(context.cwd, filename);
+        String current_content = current.getTracked().containsKey(filename) ? context.blob_store.loadString(current.getTracked().get(filename)) : "";
+        String given_content = given.getTracked().containsKey(filename) ? context.blob_store.loadString(given.getTracked().get(filename)) : "";
+        Utils.writeContents(f, "<<<<<<< HEAD\n" + current_content + "=======\n" + given_content + ">>>>>>>\n");
+        AddCommand.add(filename, context);
+    }
 
+    static void merge(String branch, Context context) {
         if (!context.references.hasPointer(branch)) {
             Utils.message("A branch with that name does not exist.");
             System.exit(0);
         }
 
+        if (context.references.getBranch().equals(branch)) {
+            Utils.message("Cannot merge a branch with itself.");
+            System.exit(0);
+        }
 
         if (!context.stage.isAdditionEmpty() || !context.stage.isRemovalEmpty()) {
             Utils.message("You have uncommitted changes.");
@@ -27,126 +34,111 @@ class MergeCommand {
         }
 
 
-        Commit given_branch_head = context.commit_tree.getCommit(context.references.getPointer(branch));
-        Commit current_branch_head = context.headCommit();
+        Commit given = context.commit_tree.getCommit(context.references.getPointer(branch));
+        Commit curr = context.headCommit();
+        Commit split = context.commit_tree.getCommit(findSplitPoint(curr.getID(), given.getID(), context));
 
-        Commit split_point = context.commit_tree.getCommit(findSplitPoint(current_branch_head.getID(), given_branch_head.getID(), context));
-
-        if (split_point.getID().equals(given_branch_head.getID())) {
+        if (split.getID().equals(given.getID())) {
             Utils.message("Given branch is an ancestor of the current branch.");
             System.exit(0);
         }
         
-        if (split_point.getID().equals(current_branch_head.getID())) {
+        if (split.getID().equals(curr.getID())) {
             CheckoutCommand.checkoutBranch(branch, context);
             Utils.message("Current branch fast-forwarded.");
             return;
         }
 
         List<String> untracked_files = scanUntrackedFiles(context);
-
         boolean isConflicted = false;
+        boolean in_split;
+        boolean in_curr;
+        boolean in_given;
+        int state = 0;
 
-        for (Map.Entry<String, String> entry : split_point.getTracked().entrySet()) {
-            String split_point_filename = entry.getKey();
-            String split_point_hash = entry.getValue();
-
-            if (!given_branch_head.getTracked().containsKey(split_point_filename) && !current_branch_head.getTracked().containsKey(split_point_filename)) {
-                continue;
-            }
-
-            if (given_branch_head.getTracked().containsKey(split_point_filename) && given_branch_head.getTracked().get(split_point_filename).equals(split_point_hash)) {
-                continue;
-            }
-
-
-            if (current_branch_head.getTracked().containsKey(split_point_filename) && current_branch_head.getTracked().get(split_point_filename).equals(split_point_hash)) {
-                if (untracked_files.contains(split_point_filename)) {
-                    Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
-                    System.exit(0);
-                }
-
-                if (!given_branch_head.getTracked().containsKey(split_point_filename)) {
-                    RmCommand.rm(split_point_filename, context);
-                    continue;
-                }
-
-                CheckoutCommand.checkout(given_branch_head.getID(), split_point_filename, context);
-                AddCommand.add(split_point_filename, context);
-                continue;
-            }
-
-            if (!current_branch_head.getTracked().containsKey(split_point_filename)) {
-                if (untracked_files.contains(split_point_filename)) {
-                    Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
-                    System.exit(0);
-                }
-
-                isConflicted = true;
-                File cwd_file = Utils.join(context.cwd, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n=======\n" + context.blob_store.loadString(given_branch_head.getTracked().get(split_point_filename)) + "\n>>>>>>>\n");
-                AddCommand.add(split_point_filename, context);
-            }
-
-            if (!given_branch_head.getTracked().containsKey(split_point_filename)) {
-                if (untracked_files.contains(split_point_filename)) {
-                    Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
-                    System.exit(0);
-                }
-
-                isConflicted = true;
-                File cwd_file = Utils.join(context.cwd, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + context.blob_store.loadString(current_branch_head.getTracked().get(split_point_filename)) + "\n=======\n>>>>>>>\n");
-                AddCommand.add(split_point_filename, context);
-            }
-            if (current_branch_head.getTracked().containsKey(split_point_filename) && given_branch_head.getTracked().containsKey(split_point_filename)) {
-                if (current_branch_head.getTracked().get(split_point_filename).equals(given_branch_head.getTracked().get(split_point_filename))) {
-                    continue;
-                }
-
-                if (untracked_files.contains(split_point_filename)) {
-                    Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
-                    System.exit(0);
-                }
-
-
-                isConflicted = true;
-                File cwd_file = Utils.join(context.cwd, split_point_filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + context.blob_store.loadString(current_branch_head.getTracked().get(split_point_filename)) + "=======\n" + context.blob_store.loadString(given_branch_head.getTracked().get(split_point_filename)) + ">>>>>>>\n");
-                AddCommand.add(split_point_filename, context);
-            }
+        Set<String> filenames = new HashSet<>();
+        filenames.addAll(split.getTracked().keySet());
+        filenames.addAll(curr.getTracked().keySet());
+        filenames.addAll(given.getTracked().keySet());
+        
+        if (!Collections.disjoint(filenames, untracked_files)) {
+            throw Utils.error("There is an untracked file in the way; delete it, or add and commit it first.");
         }
+        for (String filename : filenames) {
+            state = 0;
+            in_split = split.getTracked().containsKey(filename);
+            in_curr = curr.getTracked().containsKey(filename);
+            in_given = given.getTracked().containsKey(filename);
+            if (in_split) {
+                state |= 1;
+            }
+            if (in_curr) {
+                state |= 2;
+            }
+            if (in_given) {
+                state |= 4;
+            }
 
-        for (Map.Entry<String, String> entry : given_branch_head.getTracked().entrySet()) {
-            String filename = entry.getKey();
-            if (!split_point.getTracked().containsKey(filename)) {
-                if (current_branch_head.getTracked().containsKey(filename) && current_branch_head.getTracked().get(filename).equals(entry.getValue())) {
+            switch (state) {
+                case 1:
                     continue;
-                }
-
-                if (untracked_files.contains(filename)) {
-                    Utils.message("There is an untracked file in the way; delete it, or add and commit it first.");
-                    System.exit(0);
-                }
-
-                if (!current_branch_head.getTracked().containsKey(filename)) {
-                    CheckoutCommand.checkout(given_branch_head.getID(), filename, context);
+                case 2:
+                    continue;
+                case 3:
+                    if (split.getTracked().get(filename).equals(curr.getTracked().get(filename))) {
+                        RmCommand.rm(filename, context);
+                        continue;
+                    }
+                    resolveConflict(context, filename, curr, given);
+                    isConflicted = true;
+                    break;
+                case 4:
+                    CheckoutCommand.checkout(given.getID(), filename, context);
                     AddCommand.add(filename, context);
-                    continue;
-                }
-                
-                File cwd_file = Utils.join(context.cwd, filename);
-                Utils.writeContents(cwd_file, "<<<<<<< HEAD\n" + context.blob_store.loadString(current_branch_head.getTracked().get(filename)) + "\n=======\n" + context.blob_store.loadString(entry.getValue()) + "\n>>>>>>>");
-                AddCommand.add(filename, context);
-                isConflicted = true;
+                    break;
+                case 5:
+                    if (split.getTracked().get(filename).equals(given.getTracked().get(filename))) {
+                        continue;
+                    }
+                    resolveConflict(context, filename, curr, given);
+                    isConflicted = true;
+                    break;
+                case 6:
+                    if (curr.getTracked().get(filename).equals(given.getTracked().get(filename))) {
+                        continue;
+                    }
+                    resolveConflict(context, filename, curr, given);
+                    isConflicted = true;
+                    break;
+                case 7:
+                    String split_blob = split.getTracked().get(filename);
+                    String curr_blob = curr.getTracked().get(filename);
+                    String given_blob = given.getTracked().get(filename);
+                    if (Objects.equals(curr_blob, given_blob)) {
+                        continue;
+                    }
+                    if (Objects.equals(curr_blob, split_blob)) {
+                        CheckoutCommand.checkout(given.getID(), filename, context);
+                        AddCommand.add(filename, context);
+                        continue;
+                    }
+                    if (Objects.equals(given_blob, split_blob)) {
+                        continue;
+                    }
+                    resolveConflict(context, filename, curr, given);
+                    isConflicted = true;
+                    break;
+                default:
+                    throw Utils.error("This case should not be reached.");
             }
         }
+
         if (isConflicted) {
             Utils.message("Encountered a merge conflict.");
         }
 
 
-        CommitCommand.commit("Merged " + branch + " into " + context.references.getBranch() + ".", given_branch_head.getID(), context);
+        CommitCommand.commit("Merged " + branch + " into " + context.references.getBranch() + ".", given.getID(), context);
 
     }
 }
