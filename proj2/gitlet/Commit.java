@@ -3,21 +3,19 @@ package gitlet;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
-import java.util.TreeMap;
-import java.util.Collections;
-import static gitlet.Utils.sha1;
 
 /** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
+ *  FIXME: It's a good idea to give a description here of what else this Class
  *  does at a high level.
  *
  *  @author D
  */
 public class Commit implements Serializable {
     /**
-     * TODO: add instance variables here.
+     * FIXME: add instance variables here.
      *
      * List all instance variables of the Commit class here with a useful
      * comment above them describing what that variable represents and how that
@@ -25,77 +23,81 @@ public class Commit implements Serializable {
      */
 
     /** The message of this Commit. */
-    private String message_;
+    private String message;
 
     /** The reference of parent commit in SHA1 ID form. Empty string if none. */
-    private String parent_;
+    private String parent;
 
     /** Possible reference of second parent commit. Empty string if none. */
-    private String second_parent_;
+    private String secondParent;
 
     /** The date and time of this commit. */
-    private Date timestamp_;
+    private Date timestamp;
 
     /** The ID of this commit. */
-    private String id_;
+    private String id;
 
     /** The tracked content of this commit. */
-    private Map<String, String> tracked_;
+    private Map<String, String> tracked;
 
-    public Commit(String message, String parent, String second_parent, Map<String, String> tracked) {
-        this.message_ = message;
-        this.parent_ = parent;
-        this.second_parent_ = second_parent;
-        this.timestamp_ = new Date();
-        this.tracked_ = tracked;
+    public Commit(String message, String parent, String secondParent, Map<String, String> tracked) {
+        this.message = message;
+        this.parent = parent;
+        this.secondParent = secondParent;
+        this.timestamp = new Date();
+        this.tracked = tracked;
     }
 
     public void initialDateTime() {
-        this.timestamp_.setTime(0);
+        this.timestamp.setTime(0);
     }
 
     public void updateID() {
-        id_ = Utils.sha1(String.valueOf(this.timestamp_.getTime()), this.message_, this.parent_, this.second_parent_, this.tracked_.toString());
+        id = Utils.sha1(String.valueOf(this.timestamp.getTime()),
+                this.message, this.parent, this.secondParent,
+                this.tracked.toString());
     }
 
     public String getParentID() {
-        return parent_;
+        return parent;
     }
 
     public String getSecondParentID() {
-        return second_parent_;
+        return secondParent;
     }
 
     public Map<String, String> getTracked() {
-        return Collections.unmodifiableMap(tracked_);
+        return Collections.unmodifiableMap(tracked);
     }
 
     public String getID() {
-        return id_;
+        return id;
     }
 
     public String getMessage() {
-        return message_;
+        return message;
     }
 
     public Date getTimestamp() {
-        return timestamp_;
+        return timestamp;
     }
 
     public boolean isInitialCommit() {
-        return parent_.isEmpty();
+        return parent.isEmpty();
     }
 
     public boolean isMergeCommit() {
-        return !second_parent_.isEmpty();
+        return !secondParent.isEmpty();
     }
 
     public String toString() {
-        if (!second_parent_.equals("")) {
-            SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
-            return String.format("===\ncommit %s\nMerge: %.7s %.7s\nDate: %s\n%s\n", id_, parent_, second_parent_, sdf.format(timestamp_), message_);
-        }
         SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z");
-        return String.format("===\ncommit %s\nDate: %s\n%s\n", id_, sdf.format(timestamp_), message_);
+        if (!secondParent.equals("")) {
+            return String.format("===\ncommit %s\nMerge: %.7s %.7s\n"
+                    + "Date: %s\n%s\n",
+                    id, parent, secondParent, sdf.format(timestamp), message);
+        }
+        return String.format("===\ncommit %s\nDate: %s\n%s\n",
+                id, sdf.format(timestamp), message);
     }
 }

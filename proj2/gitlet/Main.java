@@ -33,7 +33,8 @@ public class Main {
         dispatch.put("rm-branch", a -> runStateful(repo, a, 1, x -> repo.rmBranch(x[1])));
         dispatch.put("reset", a -> runStateful(repo, a, 1, x -> repo.reset(x[1])));
         dispatch.put("merge", a -> runStateful(repo, a, 1, x -> repo.merge(x[1])));
-        dispatch.put("add-remote", a -> runStateful(repo, a, 2, x -> repo.addRemote(x[1], x[2])));
+        dispatch.put("add-remote", a -> runStateful(repo, a, 2,
+            x -> repo.addRemote(x[1], x[2])));
         dispatch.put("rm-remote", a -> runStateful(repo, a, 1, x -> repo.rmRemote(x[1])));
         dispatch.put("push", a -> runReadOnly(repo, a, 2, x -> {
             Repository remote = setupRemote(repo, x);
@@ -67,7 +68,8 @@ public class Main {
         }
     }
 
-    private static void runStateful(Repository repo, String[] args, int operands, Consumer<String[]> action) {
+    private static void runStateful(Repository repo, String[] args,
+            int operands, Consumer<String[]> action) {
         repo.check();
         checkArg(args, operands);
         action.accept(args);
@@ -80,7 +82,8 @@ public class Main {
         action.run();
     }
 
-    private static void runReadOnly(Repository repo, String[] args, int operands, Consumer<String[]> action) {
+    private static void runReadOnly(Repository repo, String[] args,
+            int operands, Consumer<String[]> action) {
         repo.check();
         checkArg(args, operands);
         action.accept(args);
@@ -88,7 +91,13 @@ public class Main {
     
     private static Repository setupRemote(Repository repo, String[] args) {
         String remote = repo.checkRemote(args[1]);
-        Repository remoteRepo = new Repository(new File(remote));
+        File remoteFile;
+        try {
+            remoteFile = new File(remote).getCanonicalFile();
+        } catch (java.io.IOException e) {
+            remoteFile = new File(remote).getAbsoluteFile();
+        }
+        Repository remoteRepo = new Repository(remoteFile);
         repo.checkRemote(remoteRepo);
         return remoteRepo;
     }

@@ -2,14 +2,9 @@ package gitlet;
 
 import java.io.File;
 import java.util.*;
-import gitlet.Utils.*;
-import gitlet.Stage.*;
-import gitlet.CommitTree.*;
-import gitlet.References.*;
-
 class StuUtils {
     static String findCommit(String text, Context context) {
-        String result = context.commit_tree.matchCommit(text);
+        String result = context.commitTree.matchCommit(text);
         if (result.equals("")) {
             Utils.message("No commit with that id exists.");
             System.exit(0);
@@ -19,8 +14,8 @@ class StuUtils {
 
     static List<String> scanUntrackedFiles(Context context) {
         List<String> files = new ArrayList<>();
-        Map<String, String> deletion_stage = context.stage.getRemovals();
-        for (Map.Entry<String, String> entry : deletion_stage.entrySet()) {
+        Map<String, String> deletionStage = context.stage.getRemovals();
+        for (Map.Entry<String, String> entry : deletionStage.entrySet()) {
             String filename = entry.getKey();
             File file = Utils.join(context.cwd, filename);
             if (file.exists()) {
@@ -28,9 +23,12 @@ class StuUtils {
             }
         }
         
-        List<String> dir_files = Utils.plainFilenamesIn(context.cwd);
-        for (String filename : dir_files) {
-            if (!context.headCommit().getTracked().containsKey(filename) && !context.stage.isStagedAddition(filename)) {
+        List<String> dirFiles = Utils.plainFilenamesIn(context.cwd);
+        for (String filename : dirFiles) {
+            boolean tracked = context.headCommit()
+                    .getTracked().containsKey(filename);
+            boolean staged = context.stage.isStagedAddition(filename);
+            if (!tracked && !staged) {
                 files.add(filename);
             }
         }
@@ -48,18 +46,18 @@ class StuUtils {
 
         while (!queue.isEmpty()) {
             String id = queue.remove();
-            Integer parent_distance = distances.get(id) + 1;
-            Commit curr_commit = context.commit_tree.getCommit(id);
-            String first_parent = curr_commit.getParentID();
-            String second_parent = curr_commit.getSecondParentID();
+            Integer parentDistance = distances.get(id) + 1;
+            Commit currCommit = context.commitTree.getCommit(id);
+            String firstParent = currCommit.getParentID();
+            String secondParent = currCommit.getSecondParentID();
 
-            if (!first_parent.isEmpty() && !distances.containsKey(first_parent)) {
-                queue.add(first_parent);
-                distances.put(first_parent, parent_distance);
+            if (!firstParent.isEmpty() && !distances.containsKey(firstParent)) {
+                queue.add(firstParent);
+                distances.put(firstParent, parentDistance);
             }
-            if (!second_parent.isEmpty() && !distances.containsKey(second_parent)) {
-                queue.add(second_parent);
-                distances.put(second_parent, parent_distance);
+            if (!secondParent.isEmpty() && !distances.containsKey(secondParent)) {
+                queue.add(secondParent);
+                distances.put(secondParent, parentDistance);
             }
         }
 
@@ -67,26 +65,26 @@ class StuUtils {
     }
 
 
-    static String findSplitPoint(String first_commit, String second_commit, Context context) {
-        HashMap<String, Integer> first_parent_distances = findParentsDistance(first_commit, context);
-        HashMap<String, Integer> second_parent_distances = findParentsDistance(second_commit, context);
+    static String findSplitPoint(String firstCommit, String secondCommit, Context context) {
+        HashMap<String, Integer> firstParentDistances = findParentsDistance(firstCommit, context);
+        HashMap<String, Integer> secondParentDistances = findParentsDistance(secondCommit, context);
 
-        String best_parent = null;
-        Integer best_distance = Integer.MAX_VALUE;
+        String bestParent = null;
+        Integer bestDistance = Integer.MAX_VALUE;
 
-        for (Map.Entry<String, Integer> entry : first_parent_distances.entrySet()) {
-            String curr_parent = entry.getKey();
-            if (second_parent_distances.containsKey(curr_parent)) {
-                Integer sum_distance = entry.getValue() + second_parent_distances.get(curr_parent);
-                if (sum_distance < best_distance) {
-                    best_parent = curr_parent;
-                    best_distance = sum_distance;
+        for (Map.Entry<String, Integer> entry : firstParentDistances.entrySet()) {
+            String currParent = entry.getKey();
+            if (secondParentDistances.containsKey(currParent)) {
+                Integer sumDistance = entry.getValue() + secondParentDistances.get(currParent);
+                if (sumDistance < bestDistance) {
+                    bestParent = currParent;
+                    bestDistance = sumDistance;
                 }
             }
         }
 
-        if (best_parent != null) {
-            return best_parent;
+        if (bestParent != null) {
+            return bestParent;
         }
         
         throw Utils.error("There should be a split point between these two commits.");
@@ -97,27 +95,27 @@ class StuUtils {
         queue.add(start);
         while (!queue.isEmpty()) {
             String curr = queue.remove();
-            if (curr.isEmpty() || dest.commit_tree.hasCommit(curr)) {
+            if (curr.isEmpty() || dest.commitTree.hasCommit(curr)) {
                 continue;
             }
 
-            Commit curr_commit = src.commit_tree.getCommit(curr);
-            dest.commit_tree.addCommit(curr, curr_commit);
+            Commit currCommit = src.commitTree.getCommit(curr);
+            dest.commitTree.addCommit(curr, currCommit);
 
-            Map<String, String> tracked = curr_commit.getTracked();
+            Map<String, String> tracked = currCommit.getTracked();
             for (Map.Entry<String, String> entry : tracked.entrySet()) {
                 String hash = entry.getValue();
-                if (dest.blob_store.contains(hash)) {
+                if (dest.blobStore.contains(hash)) {
                     continue;
                 }
-                dest.blob_store.store(hash, src.blob_store.load(hash));
+                dest.blobStore.store(hash, src.blobStore.load(hash));
             }
 
-            if (!curr_commit.getParentID().isEmpty()) {
-                queue.add(curr_commit.getParentID());
+            if (!currCommit.getParentID().isEmpty()) {
+                queue.add(currCommit.getParentID());
             }
-            if (curr_commit.isMergeCommit()) {
-                queue.add(curr_commit.getSecondParentID());
+            if (currCommit.isMergeCommit()) {
+                queue.add(currCommit.getSecondParentID());
             }
         }
     }

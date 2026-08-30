@@ -1,12 +1,13 @@
 package gitlet;
-import java.util.*; import java.io.Serializable;
+import java.io.Serializable;
+import java.util.*;
 
 public class References implements Serializable {
 
     private final String HEAD = "HEAD";
     private final String DEFAULT_BRANCH = "master";
-    private Map<String, String> pointers_ = new HashMap<>();
-    public String branch_ = DEFAULT_BRANCH;
+    private Map<String, String> pointers = new HashMap<>();
+    private String branch = DEFAULT_BRANCH;
 
     public References(String id) {
         updateHEAD(id);
@@ -14,45 +15,45 @@ public class References implements Serializable {
     }
 
     public String getHEAD() {
-        return pointers_.get(HEAD);
+        return pointers.get(HEAD);
     }
 
     public void updateHEAD(String id) {
-        pointers_.put(HEAD, id);
+        pointers.put(HEAD, id);
     }
 
     public void updatePointer(String pointer, String id) {
-        pointers_.put(pointer, id);
+        pointers.put(pointer, id);
     }
 
     public String getBranch() {
-        return branch_;
+        return branch;
     }
 
     public List<String> getBranches() {
         List<String> branches = new ArrayList<>();
-        for (Map.Entry<String, String> entry : pointers_.entrySet()) {
-            String branch = entry.getKey();
-            if (branch.equals(HEAD)) {
+        for (Map.Entry<String, String> entry : pointers.entrySet()) {
+            String b = entry.getKey();
+            if (b.equals(HEAD)) {
                 continue;
             }
-            branches.add(branch);
+            branches.add(b);
         }
         Collections.sort(branches);
         return branches;
     }
     
-    public void updateBranch(String branch) {
-        branch_ = branch;
+    public void updateBranch(String newBranch) {
+        this.branch = newBranch;
     }
 
     public boolean hasPointer(String pointer) {
-        return pointers_.containsKey(pointer);
+        return pointers.containsKey(pointer);
     }
 
     public String getPointer(String pointer) {
         if (hasPointer(pointer)) {
-            return pointers_.get(pointer);
+            return pointers.get(pointer);
         }
         return "";
     }
@@ -61,6 +62,6 @@ public class References implements Serializable {
         if (!hasPointer(pointer)) {
             return;
         }
-        pointers_.remove(pointer);
+        pointers.remove(pointer);
     }
 }

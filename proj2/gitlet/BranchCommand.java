@@ -1,25 +1,23 @@
 package gitlet;
 
-import gitlet.Context;
-
 class BranchCommand {
-    static void branch(String branch_name, Context context) {
-        if (context.references.hasPointer(branch_name)) {
+    static void branch(String branchName, Context context) {
+        if (context.references.hasPointer(branchName)) {
             Utils.message("A branch with that name already exists.");
             System.exit(0);
         }
-        context.references.updatePointer(branch_name, context.references.getHEAD());
+        context.references.updatePointer(branchName, context.references.getHEAD());
     }
 
-    static void rmBranch(String branch_name, Context context) {
-        if (!context.references.hasPointer(branch_name)) {
+    static void rmBranch(String branchName, Context context) {
+        if (!context.references.hasPointer(branchName)) {
             Utils.message("A branch with that name does not exist.");
             System.exit(0);
         }
-        if (context.references.getBranch().equals(branch_name)) {
+        if (context.references.getBranch().equals(branchName)) {
             Utils.message("Cannot remove the current branch.");
             System.exit(0);
         }
-        context.references.removePointer(branch_name);
+        context.references.removePointer(branchName);
     }
 }

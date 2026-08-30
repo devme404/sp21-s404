@@ -2,13 +2,8 @@ package gitlet;
 
 import java.io.File;
 import java.util.*;
-import gitlet.References.*;
-import gitlet.Stage.*;
-import gitlet.CommitTree.*;
 import static gitlet.Utils.*;
 import static gitlet.StuUtils.*;
-import gitlet.Context;
-
 public class Logger {
     private final Context context;
 
@@ -17,6 +12,14 @@ public class Logger {
     }
 
     public void status() {
+        printBranches();
+        printStaged();
+        printRemoved();
+        printModifications();
+        printUntracked();
+    }
+
+    private void printBranches() {
         Utils.message("=== Branches ===");
         List<String> branches = context.references.getBranches();
         for (String branch : branches) {
@@ -27,35 +30,43 @@ public class Logger {
             Utils.message(branch);
         }
         System.out.println();
+    }
 
+    private void printStaged() {
         Utils.message("=== Staged Files ===");
-        List<String> staged_files = new ArrayList<>();
-        Map<String, String> addition_stage = context.stage.getAdditions();
-        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
-            staged_files.add(entry.getKey());
+        List<String> stagedFiles = new ArrayList<>();
+        Map<String, String> additionStage = context.stage.getAdditions();
+        for (Map.Entry<String, String> entry : additionStage.entrySet()) {
+            stagedFiles.add(entry.getKey());
         }
-        Collections.sort(staged_files);
-        for (String file : staged_files) {
+        Collections.sort(stagedFiles);
+        for (String file : stagedFiles) {
             Utils.message(file);
         }
         System.out.println();
+    }
 
+    private void printRemoved() {
         Utils.message("=== Removed Files ===");
-        List<String> removed_files = new ArrayList<>();
-        Map<String, String> deletion_stage = context.stage.getRemovals();
-        for (Map.Entry<String, String> entry : deletion_stage.entrySet()) {
-            removed_files.add(entry.getKey());
+        List<String> removedFiles = new ArrayList<>();
+        Map<String, String> deletionStage = context.stage.getRemovals();
+        for (Map.Entry<String, String> entry : deletionStage.entrySet()) {
+            removedFiles.add(entry.getKey());
         }
-        Collections.sort(removed_files);
-        for (String file : removed_files) {
+        Collections.sort(removedFiles);
+        for (String file : removedFiles) {
             Utils.message(file);
         }
         System.out.println();
+    }
 
+    private void printModifications() {
         Utils.message("=== Modifications Not Staged For Commit ===");
-        Map<String, String> tracked_files = context.commit_tree.getCommit(context.references.getHEAD()).getTracked();
+        Map<String, String> trackedFiles = context.commitTree
+                .getCommit(context.references.getHEAD()).getTracked();
+        Map<String, String> additionStage = context.stage.getAdditions();
         List<String> modifications = new ArrayList<>();
-        for (Map.Entry<String, String> entry : tracked_files.entrySet()) {
+        for (Map.Entry<String, String> entry : trackedFiles.entrySet()) {
             String filename = entry.getKey();
             if (context.stage.isStagedAddition(filename)) {
                 continue;
@@ -63,9 +74,9 @@ public class Logger {
             
             File file = Utils.join(context.cwd, filename);
             if (file.exists()) {
-                byte[] content_of_file_in_cwd = readContents(file);
-                String hash_of_file_in_cwd = Utils.sha1(content_of_file_in_cwd);
-                if (!hash_of_file_in_cwd.equals(entry.getValue())) {
+                byte[] contentOfFileInCwd = readContents(file);
+                String hashOfFileInCwd = Utils.sha1(contentOfFileInCwd);
+                if (!hashOfFileInCwd.equals(entry.getValue())) {
                     modifications.add(filename + " (modified)");
                 }
             } else {
@@ -75,14 +86,14 @@ public class Logger {
             }
         }
 
-        for (Map.Entry<String, String> entry : addition_stage.entrySet()) {
+        for (Map.Entry<String, String> entry : additionStage.entrySet()) {
             String filename = entry.getKey();
 
             File file = Utils.join(context.cwd, filename);
             if (file.exists()) {
-                byte[] content_of_file_in_cwd = Utils.readContents(file);
-                String hash_of_file_in_cwd = Utils.sha1(content_of_file_in_cwd);
-                if (!hash_of_file_in_cwd.equals(entry.getValue())) {
+                byte[] contentOfFileInCwd = Utils.readContents(file);
+                String hashOfFileInCwd = Utils.sha1(contentOfFileInCwd);
+                if (!hashOfFileInCwd.equals(entry.getValue())) {
                     modifications.add(filename + " (modified)");
                 }
             } else {
@@ -94,37 +105,37 @@ public class Logger {
         for (String file : modifications) {
             Utils.message(file);
         }
-
         System.out.println();
+    }
 
+    private void printUntracked() {
         Utils.message("=== Untracked Files ===");
         List<String> files = scanUntrackedFiles(context);
         for (String file : files) {
             Utils.message(file);
         }
         System.out.println();
-
     }
 
     public void log() {
-        Commit commit_ptr = context.headCommit();
+        Commit commitPtr = context.headCommit();
 
-        while (!commit_ptr.isInitialCommit()) {
-            String commit_info = commit_ptr.toString();
-            Utils.message(commit_info);
-            commit_ptr = context.commit_tree.getCommit(commit_ptr.getParentID());
+        while (!commitPtr.isInitialCommit()) {
+            String commitInfo = commitPtr.toString();
+            Utils.message(commitInfo);
+            commitPtr = context.commitTree.getCommit(commitPtr.getParentID());
         }
 
-        String commit_info = commit_ptr.toString();
-        Utils.message(commit_info);
+        String commitInfo = commitPtr.toString();
+        Utils.message(commitInfo);
     }
 
     public void globalLog() {
-        Map<String, Commit> commit_tree = context.commit_tree.getCommitTree();
-        for (Map.Entry<String, Commit> entry : commit_tree.entrySet()) {
+        Map<String, Commit> commitTree = context.commitTree.getCommitTree();
+        for (Map.Entry<String, Commit> entry : commitTree.entrySet()) {
             Commit commit = entry.getValue();
-            String commit_info = commit.toString();
-            Utils.message(commit_info);
+            String commitInfo = commit.toString();
+            Utils.message(commitInfo);
         }
     }
 }

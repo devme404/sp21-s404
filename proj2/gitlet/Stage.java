@@ -4,63 +4,67 @@ import java.util.*;
 import java.io.Serializable;
 
 public class Stage implements Serializable {
-    private Map<String, String> addition_stage = new HashMap<>();
+    private Map<String, String> additionStage = new HashMap<>();
 
-    private Map<String, String> deletion_stage = new HashMap<>();
+    private Map<String, String> deletionStage = new HashMap<>();
 
     public void stageAddition(String filename, String hash) {
-        addition_stage.put(filename, hash);
+        additionStage.put(filename, hash);
     }
 
     public void unstageAddition(String filename) {
-        addition_stage.remove(filename);
+        additionStage.remove(filename);
     }
 
     public String getAddition(String filename) {
-        return addition_stage.get(filename);
+        return additionStage.get(filename);
     }
 
     public boolean isStagedAddition(String filename) {
-        return addition_stage.containsKey(filename);
+        return additionStage.containsKey(filename);
+    }
+
+    public boolean hasHash(String hash) {
+        return additionStage.values().contains(hash);
     }
 
     public Map<String, String> getAdditions() {
-        return Collections.unmodifiableMap(addition_stage);
+        return Collections.unmodifiableMap(additionStage);
     }
 
     public boolean isAdditionEmpty() {
-        return addition_stage.isEmpty();
+        return additionStage.isEmpty();
     }
 
     public void clearAddition() {
-        addition_stage.clear();
+        additionStage.clear();
     }
 
     public void stageRemoval(String filename, String hash) {
-        deletion_stage.put(filename, hash);
+        deletionStage.put(filename, hash);
     }
 
     public void unstageRemoval(String filename) {
-        deletion_stage.remove(filename);
+        deletionStage.remove(filename);
     }
 
     public String getRemoval(String filename) {
-        return deletion_stage.get(filename);
+        return deletionStage.get(filename);
     }
 
     public boolean isStagedRemoval(String filename) {
-        return deletion_stage.containsKey(filename);
+        return deletionStage.containsKey(filename);
     }
 
     public boolean isRemovalEmpty() {
-        return deletion_stage.isEmpty();
+        return deletionStage.isEmpty();
     }
 
     public Map<String, String> getRemovals() {
-        return Collections.unmodifiableMap(deletion_stage);
+        return Collections.unmodifiableMap(deletionStage);
     }
 
     public void clearRemoval() {
-        deletion_stage.clear();
+        deletionStage.clear();
     }
 }

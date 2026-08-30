@@ -2,35 +2,34 @@ package gitlet;
 
 import java.io.Serializable;
 import java.util.*;
-import gitlet.Commit.*;
-
 public class CommitTree implements Serializable {
-    private Map<String, Commit> commit_tree_ = new HashMap<>();
+    private Map<String, Commit> commitTree = new HashMap<>();
     public Commit getCommit(String id) {
-        return commit_tree_.get(id);
+        return commitTree.get(id);
     }
 
     public boolean hasCommit(String id) {
-        return commit_tree_.containsKey(id);
+        return commitTree.containsKey(id);
     }
 
     public void addCommit(String id, Commit commit) {
-        commit_tree_.put(id, commit);
+        commitTree.put(id, commit);
     }
 
-    public String findCommit(String text) {
-        for (Map.Entry<String, Commit> entry : commit_tree_.entrySet()) {
+    public List<String> findCommit(String text) {
+        List<String> result = new ArrayList<>();
+        for (Map.Entry<String, Commit> entry : commitTree.entrySet()) {
             Commit commit = entry.getValue();
             if (commit.getMessage().equals(text)) {
-                return commit.getID();
+                result.add(commit.getID());
             }
         }
-        return "";
+        return result;
     }
 
     public String matchCommit(String text) {
         String id = text;
-        for (Map.Entry<String, Commit> entry : commit_tree_.entrySet()) {
+        for (Map.Entry<String, Commit> entry : commitTree.entrySet()) {
             if (entry.getKey().startsWith(text)) {
                 id = entry.getValue().getID();
                 return id;
@@ -45,6 +44,6 @@ public class CommitTree implements Serializable {
     }
 
     public Map<String, Commit> getCommitTree() {
-        return Collections.unmodifiableMap(commit_tree_);
+        return Collections.unmodifiableMap(commitTree);
     }
 }

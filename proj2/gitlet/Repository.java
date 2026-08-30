@@ -18,92 +18,93 @@ import static gitlet.BranchCommand.*;
 /** Represents a gitlet repository. */
 class Repository {
     /** The current working directory. */
-    public File CWD;
+    File cwd;
     /** The .gitlet directory. */
-    public File GITLET_DIR;
+    File gitletDir;
     /** The stage directory. */
-    public File STAGE_DIR;
+    File stageDir;
     /** The blob directory. */
-    public File BLOB_DIR;
+    File blobDir;
 
-    public File STAGE;
-    public File COMMIT_TREE;
-    public File REFERENCES;
-    public File REMOTES;
+    File stageFile;
+    File commitTreeFile;
+    File referencesFile;
+    File remotesFile;
 
-    private BlobStore stage_store;
-    private BlobStore blob_store;
+    private BlobStore stageStore;
+    private BlobStore blobStore;
 
-    private Stage stage_;
-    private CommitTree commit_tree_;
-    private References references_;
-    private Remotes remotes_;
-    private Logger logger_;
+    private Stage stage;
+    private CommitTree commitTree;
+    private References references;
+    private Remotes remotes;
+    private Logger logger;
     private Context context;
 
     void initialize(File dir) {
-        CWD = dir;
-        GITLET_DIR = join(CWD, ".gitlet");
-        STAGE_DIR = join(GITLET_DIR, "stage");
-        BLOB_DIR = join(GITLET_DIR, "blob");
-        STAGE = join(GITLET_DIR, "stage-meta");
-        COMMIT_TREE = join(GITLET_DIR, "commit-tree");
-        REFERENCES = join(GITLET_DIR, "references");
-        REMOTES = join(GITLET_DIR, "remotes");
-        stage_store = new BlobStore(STAGE_DIR);
-        blob_store = new BlobStore(BLOB_DIR);
+        cwd = dir;
+        gitletDir = join(cwd, ".gitlet");
+        stageDir = join(gitletDir, "stage");
+        blobDir = join(gitletDir, "blob");
+        stageFile = join(gitletDir, "stage-meta");
+        commitTreeFile = join(gitletDir, "commit-tree");
+        referencesFile = join(gitletDir, "references");
+        remotesFile = join(gitletDir, "remotes");
+        stageStore = new BlobStore(stageDir);
+        blobStore = new BlobStore(blobDir);
         readState();
-        context = new Context(CWD, stage_, commit_tree_, references_, blob_store, stage_store);
-        logger_ = new Logger(context);
+        context = new Context(cwd, stage, commitTree, references, blobStore, stageStore);
+        logger = new Logger(context);
     }
 
-    public Repository() {
+    Repository() {
         initialize(new File(System.getProperty("user.dir")));
     }
 
-    public Repository(File gitletDir) {
+    Repository(File gitletDir) {
         File dir = gitletDir.getParentFile() != null ? gitletDir.getParentFile() : new File(".");
         initialize(dir);
     }
 
     public void init() {
-        if (GITLET_DIR.exists()) {
-            Utils.message("A Gitlet version-control system already exists in the current directory.");
+        if (gitletDir.exists()) {
+            Utils.message("A Gitlet version-control system already exists "
+                    + "in the current directory.");
             System.exit(0);
         }
-        stage_ = new Stage();
+        stage = new Stage();
 
         Map<String, String> tracked = new TreeMap<String, String>();
-        Commit initial_commit = new Commit("initial commit", "", "", tracked);
-        initial_commit.initialDateTime();
-        initial_commit.updateID();
-        commit_tree_ = new CommitTree();
-        commit_tree_.addCommit(initial_commit.getID(), initial_commit);
+        Commit initialCommit = new Commit("initial commit", "", "", tracked);
+        initialCommit.initialDateTime();
+        initialCommit.updateID();
+        commitTree = new CommitTree();
+        commitTree.addCommit(initialCommit.getID(), initialCommit);
         
-        Map<String, Commit> commits = commit_tree_.getCommitTree();
+        Map<String, Commit> commits = commitTree.getCommitTree();
         String id = "";
         for (Map.Entry<String, Commit> entry : commits.entrySet()) {
             if (entry.getValue().isInitialCommit()) {
                 id = entry.getValue().getID();
             }
         }
-        references_ = new References(id);
-        context = new Context(CWD, stage_, commit_tree_, references_, blob_store, stage_store);
-        logger_ = new Logger(context);
-        remotes_ = new Remotes();
+        references = new References(id);
+        context = new Context(cwd, stage, commitTree, references, blobStore, stageStore);
+        logger = new Logger(context);
+        remotes = new Remotes();
 
-        GITLET_DIR.mkdir();
-        STAGE_DIR.mkdir();
-        BLOB_DIR.mkdir();
+        gitletDir.mkdir();
+        stageDir.mkdir();
+        blobDir.mkdir();
 
-        Utils.writeObject(STAGE, stage_);
-        Utils.writeObject(COMMIT_TREE, commit_tree_);
-        Utils.writeObject(REFERENCES, references_);
-        Utils.writeObject(REMOTES, remotes_);
+        Utils.writeObject(stageFile, stage);
+        Utils.writeObject(commitTreeFile, commitTree);
+        Utils.writeObject(referencesFile, references);
+        Utils.writeObject(remotesFile, remotes);
     }
 
     public void check() {
-        if (GITLET_DIR.exists()) {
+        if (gitletDir.exists()) {
             return;
         }
         Utils.message("Not in an initialized Gitlet directory.");
@@ -111,18 +112,18 @@ class Repository {
     }
 
     public void log() {
-        logger_.log();
+        logger.log();
     }
 
     public void globalLog() {
-        logger_.globalLog();
+        logger.globalLog();
     }
 
     public void save() {
-        Utils.writeObject(STAGE, stage_);
-        Utils.writeObject(COMMIT_TREE, commit_tree_);
-        Utils.writeObject(REFERENCES, references_);
-        Utils.writeObject(REMOTES, remotes_);
+        Utils.writeObject(stageFile, stage);
+        Utils.writeObject(commitTreeFile, commitTree);
+        Utils.writeObject(referencesFile, references);
+        Utils.writeObject(remotesFile, remotes);
     }
 
     public void add(String filename) {
@@ -133,48 +134,50 @@ class Repository {
         RmCommand.rm(filename, context);
     }
 
-    public void commit(String message, String second_parent) {
-        CommitCommand.commit(message, second_parent, context);
+    public void commit(String message, String secondParent) {
+        CommitCommand.commit(message, secondParent, context);
     }
 
     public void find(String message) {
-        String result = commit_tree_.findCommit(message);
-        if (result.equals("")) {
+        List<String> result = commitTree.findCommit(message);
+        if (result.isEmpty()) {
             Utils.message("Found no commit with that message.");
         } else {
-            Utils.message(result);
+            for (String id : result) {
+                Utils.message(id);
+            }
         }
     }
 
     public void status() {
-        logger_.status();
+        logger.status();
     }
 
     public void checkout(String filename) {
-        checkout(references_.getHEAD(), filename);
+        checkout(references.getHEAD(), filename);
     }
 
-    public void checkout(String commit_id, String filename) {
-        CheckoutCommand.checkout(commit_id, filename, context);
+    public void checkout(String commitId, String filename) {
+        CheckoutCommand.checkout(commitId, filename, context);
     }
 
     public void checkoutBranch(String branch) {
         CheckoutCommand.checkoutBranch(branch, context);
     }
 
-    public void branch(String branch_name) {
-        BranchCommand.branch(branch_name, context);
+    public void branch(String branchName) {
+        BranchCommand.branch(branchName, context);
     }
 
-    public void rmBranch(String branch_name) {
-        BranchCommand.rmBranch(branch_name, context);
+    public void rmBranch(String branchName) {
+        BranchCommand.rmBranch(branchName, context);
     }
 
-    public void reset(String commit_id) {
-        String id_to_reset = StuUtils.findCommit(commit_id, context);
-        checkoutCommit(id_to_reset);
-        references_.updateHEAD(id_to_reset);
-        references_.updatePointer(references_.getBranch(), id_to_reset);
+    public void reset(String commitId) {
+        String idToReset = StuUtils.findCommit(commitId, context);
+        checkoutCommit(idToReset);
+        references.updateHEAD(idToReset);
+        references.updatePointer(references.getBranch(), idToReset);
     }
 
     public void merge(String branch) {
@@ -182,15 +185,15 @@ class Repository {
     }
 
     public void addRemote(String remote, String path) {
-        RemoteCommand.addRemote(remote, path, remotes_);
+        RemoteCommand.addRemote(remote, path, remotes);
     }
 
     public void rmRemote(String remote) {
-        RemoteCommand.rmRemote(remote, remotes_);
+        RemoteCommand.rmRemote(remote, remotes);
     }
 
     public String checkRemote(String remote) {
-        return RemoteCommand.checkRemote(remote, remotes_);
+        return RemoteCommand.checkRemote(remote, remotes);
     }
 
     public void checkRemote(Repository remote) {
@@ -211,24 +214,24 @@ class Repository {
     }
 
     private void readState() {
-        if (STAGE.exists()) {
-            stage_ = Utils.readObject(STAGE, Stage.class);
+        if (stageFile.exists()) {
+            stage = Utils.readObject(stageFile, Stage.class);
         }
-        if (COMMIT_TREE.exists()) {
-            commit_tree_ = Utils.readObject(COMMIT_TREE, CommitTree.class);
+        if (commitTreeFile.exists()) {
+            commitTree = Utils.readObject(commitTreeFile, CommitTree.class);
         }
-        if (REFERENCES.exists()) {
-            references_ = Utils.readObject(REFERENCES, References.class);
+        if (referencesFile.exists()) {
+            references = Utils.readObject(referencesFile, References.class);
         }
-        if (REMOTES.exists()) {
-            remotes_ = Utils.readObject(REMOTES, Remotes.class);
+        if (remotesFile.exists()) {
+            remotes = Utils.readObject(remotesFile, Remotes.class);
         } else {
-            remotes_ = new Remotes();
+            remotes = new Remotes();
         }
     }
 
-    private void checkoutCommit(String commit_id) {
-        CheckoutCommand.checkoutCommit(commit_id, context);
+    private void checkoutCommit(String commitId) {
+        CheckoutCommand.checkoutCommit(commitId, context);
     }
 
     public Context getContext() {

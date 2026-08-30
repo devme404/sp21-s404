@@ -1,26 +1,25 @@
 package gitlet;
 
 import java.io.File;
-import gitlet.CommitTree.*;
-
 class Context {
     final File cwd;
     final Stage stage;
-    final CommitTree commit_tree;
+    final CommitTree commitTree;
     final References references;
-    final BlobStore blob_store;
-    final BlobStore stage_store;
+    final BlobStore blobStore;
+    final BlobStore stageStore;
 
-    Context(File cwd, Stage stage, CommitTree commit_tree, References references, BlobStore blob_store, BlobStore stage_store) {
+    Context(File cwd, Stage stage, CommitTree commitTree,
+            References references, BlobStore blobStore, BlobStore stageStore) {
         this.cwd = cwd;
         this.stage = stage;
-        this.commit_tree = commit_tree;
+        this.commitTree = commitTree;
         this.references = references;
-        this.blob_store = blob_store;
-        this.stage_store = stage_store;
+        this.blobStore = blobStore;
+        this.stageStore = stageStore;
     }
 
     Commit headCommit() {
-        return commit_tree.getCommit(references.getHEAD());
+        return commitTree.getCommit(references.getHEAD());
     }
 }
