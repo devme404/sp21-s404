@@ -5,143 +5,161 @@
 ## Classes and Data Structures
 
 ### Main
-
-This is the entry point to our program. It receives command-line parameters and parses them into different commands. It also validates parameters and throws error messages when they does not meets the format.
+Entry point. Parses `args`, validates operand count via a dispatch table, delegates to `Repository`, and centralizes error handling (`GitletException` → `message` + `System.exit(0)`).
 
 #### Fields
-
 This class has no fields.
 
-
 ### Repository
-
-This is the repository state we maintain mainly. It stores paths of different directories and the state of the gitlet repository.
-
-It could initialize the repository which saves the state into the file. And it could check whether the current working directory is a gitlet repository.
-
-All gitlet commands are implemented in this class. Detailed explanation will be in Algorithms part.
+Abstraction of a Gitlet repository. Owns persistence layout, in-memory state, and delegates commands to handler classes. Holds a `Context` to pass shared state to handlers.
 
 #### Fields
+1. `public File CWD` — working directory (default `user.dir`)
+2. `public File GITLET_DIR` — `.gitlet` directory
+3. `public File STAGE_DIR` — staged blobs (`stage/`, file name = `sha1(content)`)
+4. `public File BLOB_DIR` — committed blobs (`blob/`, file name = `sha1(content)`)
+5. `public File STAGE` — `stage-meta` (serialized `Stage`)
+6. `public File COMMIT_TREE` — `commit-tree` (serialized `CommitTree`)
+7. `public File REFERENCES` — `references` (serialized `References`)
+8. `public File REMOTES` — `remotes` (serialized `Remotes`)
+9. `private BlobStore stage_store` / `blob_store` — file I/O for the two blob dirs
+10. `private Stage stage_` — addition & deletion stage
+11. `private CommitTree commit_tree_` — all commits indexed by `sha1`
+12. `private References references_` — `HEAD` + branch pointers
+13. `private Remotes remotes_` — remote name → path
+14. `private Logger logger_` — `log / global-log / status` printing
+15. `private Context context` — shared view (`cwd, stage, commit_tree, references, blob_store, stage_store`)
 
-1. `public static final File CWD = new File(System.getProperty("user.dir"))` The Current Working Directory. It offers base path for other directories.
-2. `public static final File GITLET_DIR = join(CWD, ".gitlet")` The gitlet directory. This directory stores all files related to the program.
-3. `public static final File STAGE_DIR = join(GITLET_DIR, "stage")` The stage directory. This directory stores all staged files.
-4. `public static final File BLOB_DIR = join(GITLET_DIR, "blob")` The blob directory. This directory stores all committed files.
-5. `public static final File STATE_DIR = join(GITLET_DIR, "state")` The state directory. This directory stores the state of gitlet repository which implements the persistence of the program.
-6. `public State state_` The state variable. It stores information about gitlet repository with a custom class named `State`. Details will be explained in its section.
-7. `private static final String HEAD_POINTER = "HEAD"` The HEAD Pointer. This could be integrated into `State` class, but it works now.
+`initialize(File dir)` builds all paths, creates `BlobStore`s, calls `readState()` and builds `Context`/`Logger`. Both `Repository()` and `Repository(File gitletDir)` delegate to it.
 
 ### Commit
-
-This class implements an abstract data structure for a commit. It contains all related data and provides a method to calculate hash value for itself.
-
-#### Fields
-
-1. `public String message_` The commit message.
-2. `public String parent_commit_` The hash of the parent commit of this commit.
-3. `public String second_parent_commit_` The hash of the other parent commit of this commit. This would be `null` unless this is a merge commit.
-4. `public Date date_and_time_`  The date and time of this commit.
-5. `public String id_` The hash of this commit.
-6. `public HashMap<String, String> tracked_ = new HashMap<>()` Tracked files of this commit. `Key` is the filename and `Value` is the hash value of files.
-
-
-### State
-
-This class stores all data related to the gitlet repository. The default branch would be `master`. Details are below.
+Immutable snapshot. `parent_` is empty for the initial commit; `second_parent_` is non-empty only for merge commits.
 
 #### Fields
+1. `private String message_`
+2. `private String parent_`
+3. `private String second_parent_`
+4. `private Date timestamp_` — epoch 0 for initial commit
+5. `private String id_` — `sha1(timestamp.toString(), message_, parent_, second_parent_, tracked_.toString())`
+6. `private Map<String,String> tracked_` — `TreeMap` filename → blob hash (deterministic `toString` for hashing)
 
-1. `public HashMap<String, Commit> commit_tree = new HashMap<>()` The commit tree. `Key` is the hash value of commits and `Value` is the corresponding `Commit` object.
-2. `public HashMap<String, String> addition_stage = new HashMap<>()` Staged files for addition. `Key` is the filename of files and `Value` is the hash value.
-3. `public HashMap<String, String> deletion_stage = new HashMap<>()` Staged files for deletion. `Key` is the filename of files and `Value` is the hash value.
-4. `public HashMap<String, String> pointers_ = new HashMap<>()` Pointers to latest commits of branches. `Key` is the branch name and `Value` is the hash of the corresponding commit.
-5. `public String branch_ = ""` Current branch name.
+### Context
+Immutable carrier of repository state for handlers.
 
+#### Fields
+1. `final File cwd`
+2. `final Stage stage`
+3. `final CommitTree commit_tree`
+4. `final References references`
+5. `final BlobStore blob_store`
+6. `final BlobStore stage_store`
+
+### Stage
+Addition and deletion stage.
+
+#### Fields
+1. `private Map<String,String> addition_stage` — `HashMap` filename → hash
+2. `private Map<String,String> deletion_stage` — `HashMap` filename → hash
+
+### CommitTree
+All commits.
+
+#### Fields
+1. `private Map<String,Commit> commit_tree_` — `HashMap` hash → `Commit`
+
+### BlobStore
+File-based content-addressable store.
+
+#### Fields
+1. `private File WORK_DIR`
+
+### References
+Branch pointers. `HEAD` is stored as a pointer entry.
+
+#### Fields
+1. `private final String HEAD = "HEAD"`
+2. `private final String DEFAULT_BRANCH = "master"`
+3. `private Map<String,String> pointers_` — name → commit hash (`HashMap`)
+4. `private String branch_` — current branch
+
+### Remotes
+#### Fields
+1. `Map<String,String> remotes` — `TreeMap` name → path (with `/` → `File.separator` conversion)
+
+### Logger
+Printing for `log / global-log / status`.
+
+#### Fields
+1. `private final Context context`
+
+### Command Handlers
+`AddCommand`, `RmCommand`, `CommitCommand`, `CheckoutCommand`, `BranchCommand`, `MergeCommand`, `RemoteCommand` are **stateless** — all logic in `static` methods taking `Context` (and `Remotes` where needed). No fields.
+
+### StuUtils
+Utility helpers (`findCommit`, `scanUntrackedFiles`, `findParentsDistance`/`findSplitPoint`, `transfer`). No fields.
+
+---
 
 ## Algorithms
 
 ### Main
+Dispatch table `Map<String, Consumer<String[]>>`:
+* `init` / `commit` have custom runners (commit checks empty message before `repo.check()`).
+* `add/rm/branch/rm-branch/reset/merge/add-remote/rm-remote` → `runStateful` (check repo, check operand count, run, `save()`).
+* `log/global-log/find/status` → `runReadOnly` (check, check, run).
+* `checkout` → `runCheckout` (3 forms, then `save()`).
+* `push/fetch/pull` → `setupRemote` (resolve remote path, open remote `Repository`) then delegate to `RemoteCommand`; `pull = fetch + merge`.
 
-This class contains simple functions for validating command-line arguments.
-
-#### Methods
-
-1. `private static void checkOneArg(String[] argv)` Checks whether there is only one argument for commands. `argv` is the raw command-line arguments. If user does not pass two parameters then the program exits.
-2. `private static void checkZeroArg(String[] args)` Checks whether there is not any argument for commands. `argv` is the raw command-line arguments. If user does not pass only one parameter, then the program exits.
-
-### Commit
-
-This class contains simple functions deals with data about the commit.
-
-#### Methods
-
-1. `public Commit(String message, String parent_commit, String second_parent_commit)` Commit Initialization. It directly sets `date_and_time_` as current date and time. 
-2. `public void updateID()` Calculate the hash value of the commit. It calculates the hash value by `sha1` the sum of strings of `date_and_time_`, `message_` and `parent_commit_` sequentially.
-
-### State
-
-This class contains repository data and only has one initialization function.
-
-#### Methods
-
-1. `public void init()` Initialization a repository state. It creates a default commit in the commit tree, and setup default branch and `HEAD` pointer.
+All `Incorrect operands` / `No command...` / `Not in an initialized...` are thrown as `GitletException` and handled in one `catch`.
 
 ### Repository
+* `init()` — guards `GITLET_DIR` exists, creates `Stage`, initial `Commit` (epoch 0), `CommitTree`, `References` (master→initial), `Remotes`, `Context`/`Logger`, `mkdir`s, `writeObject`s.
+* `check()` / `save()` / `readState()` — existence guard and `Utils.readObject/writeObject` for the four serialized files.
+* Other methods are one-line delegates (`add → AddCommand.add`, etc.). `reset` resolves abbreviated id via `StuUtils.findCommit`, `checkoutCommit`, then moves `HEAD` and current branch pointer.
 
-This class implements all main functions of the gitlet program. Basically, `Main` class would call corresponding function here according to the command user input.
+### Commit
+`updateID()` hashes the five fields above; `toString()` formats `=== commit / Merge: / Date / message` with `SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z")`.
 
-#### Methods
+### Handler Highlights
+* **AddCommand** — unstage removal if present; `sha1(content)`; if `headCommit` already tracks same hash, unstage addition; otherwise stage (store blob in `stage_store`). Handles overwrite of staged entry.
+* **RmCommand** — unstage addition (and delete staged blob); if tracked in `HEAD`, stage removal and `restrictedDelete` from `cwd`.
+* **CommitCommand** — guards empty message / empty stage; `TreeMap tracked = HEAD.tracked + additions - removals`; moves blobs `stage_store → blob_store`; creates `Commit(message, HEAD.id, second_parent, tracked)`, updates `CommitTree` and both `HEAD`/branch pointers.
+* **CheckoutCommand** — `checkout(id,file)` resolves abbreviated id, validates existence, `writeContents` from `blob_store`. `checkoutCommit(id)` checks untracked-would-be-overwritten before clearing stage, writes target snapshot, deletes files not in target.
+* **BranchCommand** — `branch`/`rmBranch` guard existence and `cannot remove current`.
+* **MergeCommand** — guards self-merge, uncommitted changes, finds `split = LCA(curr,given)` via BFS distances, ancestor/fast-forward early returns, builds `union = split ∪ curr ∪ given`, encodes presence as `state = 1|2|4`, `switch(state)` implements spec's 8 rules (checkout/rm vs `resolveConflict`). `resolveConflict` does straight concatenation (`"<<<<<<< HEAD\n" + curContent + "=======\n" + givenContent + ">>>>>>>\n"`, empty string for deleted) and `AddCommand.add`. Finally commits `Merged [given] into [curr]` with `second_parent = given.id`, printing `Encountered a merge conflict.` if needed.
+* **RemoteCommand / StuUtils.transfer** — `transfer` BFS from start commit, copies missing commits and their blobs; `push` checks `isAncestor(remoteHead, localHead)` via BFS over both parents, `fetch`/`pull` update `remoteName/branch` pointer; `pull = fetch + merge`.
 
-1. `public void init()` Initialization function. It firstly checks whether the current working directory is a gitlet repository. If it is, then the program exits. If it is not, it creates related directories and saves current state for persistence.
-2. `public void check()` Checks the existence of the gitlet repository. It checks the `.gitlet` directory. When it does not exist, the program exits for safety.
-3. `public void log()` Print repository log. It firstly gets the HEAD commit, then reverse the commit tree by `parent_commit_`. Then it print commit information according to whether it is a merge commit. Then it deals with the special case where the default commit does not have a parent commit.
-4. `public void globalLog()` Print all log disorderly. It simply iterates the commit tree `HashMap` and print every commit log.
-5. `public void save()` Save the current state. It writes current repository state into the state file.
-6. `public void add(String filename)` Stages file for addition. The most difficulty part is removing duplicated staged file when the same file is already tracked. Then if the file is not staged, it stages it and returns. If the file is staged, it replaces it.
-7. `public void rm(String filename)` Stages file for removal. If the file is already staged for addition, it removes the file and returns. Then if the HEAD commit contains the file, it stages the file for removal. Otherwise, it refuses to change anything.
-8. `public void commit(String message, String second_parent_commit)` Makes a commit. It tracks files based on the addition stage and untracks files based on the deletion stage. Then it updates the commit tree, `HEAD` pointer and the branch pointer.
-9. `public void find(String message)` Finds the commit with given message. It just iterates the commit tree `HashMap`.
-10. `public void status()` Prints current status. It prints current branches, staged files, removed files, modifications and untracked files. The later two parts are a bit complex. For modifications, it firstly iterates tracked files to find whether they are modified or deleted. Then it repeats those steps for addition stage. For untracked files, details are explained in the related utility function.
-11. `public void checkout(String commit_id, String filename)` Checkouts certain file from certain commit. It simply replaces the file from corresponding tracked file.
-12. `public void checkout(String filename)` Checkouts certain file from latest commit.
-13. `public void checkoutBranch(String branch)` Checkouts certain branch. It checkouts from the latest commit of that branch.
-14. `public void branch(String branch_name)` Creates a branch with given name. It sets the latest commit as the latest commit of the branch.
-15. `public void rmBranch(String branch_name)` Removes a branch with given name.
-16. `public void reset(String commit_id)` Resets to certain commit. It checkouts to certain commit, and updates `HEAD` pointer and the branch.
-17. `public void merge(String branch)` Merges current branch and given branch. This is the most complex function. Firstly, it finds the split point of these two branches. Then it iterates tracked files of the split point commit and handles different situations. Secondly, it iterates tracked files of given branch and handles different situations. All situations are identified by the existence and the hash value of files.
-18. `private void readState()` Loads stored repository state.
-19. `private String commitToString(Commit commit)` Converts a commit to a string.
-20. `private String mergeCommitToString(Commit commit)` Converts a merge commit to a string.
-21. `private List<String> scanUntrackedFiles()` Finds untracked files. It detects deleted files from deletion stage and untracked files from latest commit.
-22. `private void checkoutCommit(String commit_id)` Checkouts to certain commit. It checkouts all tracked files from given commit and removes all files the given commit does not track.
-23. `private String findCommit(String commit_id)` Finds certain commit with the substring of its hash value. It simply iterates the commit tree.
-24. `private HashMap<String, Integer> findParentDistance(String commit)` Calculates distances to other commits. It uses BFS.
-25. `private String findSplitPoint(String first_commit, String second_commit)` Finds the split point commit of given commits. It firstly calculates distances of given commits, then finds the shortest parent commit of those two commits.
+### Logger
+* `log()` — follows first-parent chain from `HEAD`.
+* `globalLog()` — iterates `CommitTree` values.
+* `status()` — sorts branches/staged/removed; for `Modifications Not Staged` checks tracked files not staged and addition-stage files against `sha1(content)` of `cwd` file; `Untracked` via `StuUtils.scanUntrackedFiles`.
+
+### StuUtils
+* `scanUntrackedFiles` — files in `deletion_stage` that re-appeared in `cwd` + files in `cwd` not tracked nor staged.
+* `findSplitPoint` — BFS distances from both heads (following both parents), picks common ancestor with minimal `dist1+dist2`.
 
 ## Persistence
 
-The directory structure is like this:
+Directory layout:
 ```
-CWD              -- Current working directory
-|___ .gitlet     -- gitlet repository data here
-    |___ stage   -- stage files named their hash values
-    |___ blob    -- tracked files named their hash values
-    |___ state   -- gitlet repository state data
+CWD
+└── .gitlet
+    ├── stage/          — staged blobs, name = sha1(content)
+    ├── blob/           — committed blobs, name = sha1(content)
+    ├── stage-meta      — serialized Stage
+    ├── commit-tree     — serialized CommitTree
+    ├── references      — serialized References
+    └── remotes         — serialized Remotes
 ```
 
-The `Repository` class sets up persistence, including:
-1. Creates `.gitlet`, `stage` and `blob` folders if they do not exist.
-2. Creates a `State` variable storing repository state and writes it into target path, which creates the folder if it does not exist.
+Strategy — prove no state is lost across `java gitlet.Main` invocations:
+* Every command constructs `Repository()` → `initialize()` → `readState()` deserializes the four files if they exist, rebuilds `Context`.
+* Mutating commands (`add/rm/commit/checkout/branch/merge/remote`) mutate in-memory `Stage/CommitTree/References/Remotes` and `BlobStore` files, then `save()` serializes the four files. `commit` additionally moves blobs `stage → blob`.
+* Example: `java gitlet.Main add wug.txt` stores `sha1(content)` blob in `stage/` and adds entry to `Stage`, then `writeObject(STAGE)`. Next invocation `java gitlet.Main commit -m "..."` `readObject(STAGE)` recovers the staged hash, copies blob to `blob/`, updates `CommitTree`/`References`, and `writeObject`s all four files. No in-memory field is needed across runs.
+* Serialization uses `Utils.writeObject/readObject` (Java serialization); no pointers are serialized — commits reference parents/blobs by hash strings; transient fields are avoided.
 
-`add` and `rm` commands does following things:
-1. Creates stage files when they does not exist.
-2. Replaces existing but different stage files.
-3. Removes existing stage files when `rm` is used.
+## Key Design Decisions
 
-`commit` command does following things:
-1. Creates tracked files in `blob` folder when they does not exist.
-2. Modifies repository state and replace existing state file.
+Firstly, splitting the store of staged blobs and committed blobs ensures these two parts are independent and safe. So the stage operations like `rm` does not affect committed blobs, vice versa.
 
-`merge` command does similar things as `commit`. It creates a merge commit.
-
-The `State` class handles the serialization of `State` objects by default.
+Secondly, instead of nested if-else sentences, a boolean mask implements a simplified state machine, which is more graceful for the merge logic.

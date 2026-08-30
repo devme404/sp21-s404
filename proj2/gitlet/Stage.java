@@ -4,9 +4,9 @@ import java.util.*;
 import java.io.Serializable;
 
 public class Stage implements Serializable {
-    private HashMap<String, String> addition_stage = new HashMap<>();
+    private Map<String, String> addition_stage = new HashMap<>();
 
-    private HashMap<String, String> deletion_stage = new HashMap<>();
+    private Map<String, String> deletion_stage = new HashMap<>();
 
     public void stageAddition(String filename, String hash) {
         addition_stage.put(filename, hash);

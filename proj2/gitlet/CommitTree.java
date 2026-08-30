@@ -5,7 +5,7 @@ import java.util.*;
 import gitlet.Commit.*;
 
 public class CommitTree implements Serializable {
-    public HashMap<String, Commit> commit_tree_ = new HashMap<>();
+    private Map<String, Commit> commit_tree_ = new HashMap<>();
     public Commit getCommit(String id) {
         return commit_tree_.get(id);
     }

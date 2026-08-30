@@ -1,13 +1,11 @@
 package gitlet;
-
-import java.util.*;
-import java.io.Serializable;
+import java.util.*; import java.io.Serializable;
 
 public class References implements Serializable {
 
     private final String HEAD = "HEAD";
     private final String DEFAULT_BRANCH = "master";
-    public HashMap<String, String> pointers_ = new HashMap<>();
+    private Map<String, String> pointers_ = new HashMap<>();
     public String branch_ = DEFAULT_BRANCH;
 
     public References(String id) {
