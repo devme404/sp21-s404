@@ -24,8 +24,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.14</source>
-                    <target>1.14</target>
+                    <source>11</source>
+                    <target>11</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -36,6 +36,21 @@
                     <compilerArgs>
                         <arg>-J-XX:+ShowCodeDetailsInExceptionMessages</arg>
                     </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.surefire</groupId>
+                        <artifactId>surefire-junit4</artifactId>
+                        <version>3.5.4</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <useFile>false</useFile>
                 </configuration>
             </plugin>
         </plugins>
