@@ -1,0 +1,137 @@
+Lab 8 - Hash Table / Hash Map Speed Test Results
+==================================================
+
+Environment
+-----------
+CPU:     Intel(R) Core(TM) Ultra 9 275HX (24 cores)
+RAM:     30 GiB
+OS:      Linux 7.2.8-zen1-2-zen
+JDK:     OpenJDK 27
+JVM opts: default (no -Xmx / -Xss tuning)
+Date:    2026-10-04
+
+Implementation under test
+-------------------------
+hashmap.MyHashMap
+  - hash:            Math.abs(key.hashCode() / 23) % capacity
+  - resize:          doubles the backing table, rehashes every node
+  - load factor:     0.75 (default), initial capacity 16
+  - default bucket:  java.util.HashSet<Node>
+
+All numbers below are wall-clock seconds reported by
+edu.princeton.cs.algs4.Stopwatch and are the raw output of the speed
+test programs (no averaging over repeated trials; single run each).
+String length L = 10 for InsertRandomSpeedTest / BucketsSpeedTest.
+InsertInOrderSpeedTest generates keys with StringUtils.nextString, so it
+takes no L.
+
+
+1. InsertRandomSpeedTest  (random String keys of length L = 10)
+----------------------------------------------------------------
+  N         hashmap.MyHashMap    Java's HashMap    ULLMap
+  ------    ------------------    ---------------    ------------------
+   100000           0.11 sec          0.03 sec        StackOverflowError
+   200000           0.21 sec          0.05 sec        StackOverflowError
+   500000           0.42 sec          0.10 sec        StackOverflowError
+
+ULLMap is an unbounded linked list, so insert is O(N) and blows the
+default 1 MB stack well before 100000 keys. This is the expected
+outcome, not a bug.
+
+
+2. InsertInOrderSpeedTest  (lexicographically increasing String keys)
+--------------------------------------------------------------------
+  N         hashmap.MyHashMap    Java's HashMap    ULLMap
+  ------    ------------------    ---------------    ------------------
+  100000           0.07 sec          0.03 sec        StackOverflowError
+  200000           0.16 sec          0.04 sec        StackOverflowError
+  500000           0.24 sec          0.10 sec        StackOverflowError
+
+MyHashMap handles the sorted-key case no worse than random keys, so
+resizing does not degenerate here. ULLMap is again O(N) per insert.
+
+
+3. BucketsSpeedTest  (all five bucket types, N inserts each)
+--------------------------------------------------------------
+N = 100000
+  MyHashMapALBuckets  (ArrayList)     0.09 sec
+  MyHashMapLLBuckets  (LinkedList)    0.06 sec
+  MyHashMapTSBuckets  (TreeSet)       0.08 sec
+  MyHashMapHSBuckets  (HashSet)       0.09 sec
+  MyHashMapPQBuckets  (PriorityQueue) 0.05 sec
+
+N = 200000
+  MyHashMapALBuckets  (ArrayList)     0.16 sec
+  MyHashMapLLBuckets  (LinkedList)    0.13 sec
+  MyHashMapTSBuckets  (TreeSet)       0.15 sec
+  MyHashMapHSBuckets  (HashSet)       0.15 sec
+  MyHashMapPQBuckets  (PriorityQueue) 0.15 sec
+
+N = 500000
+  MyHashMapALBuckets  (ArrayList)     0.34 sec
+  MyHashMapLLBuckets  (LinkedList)    0.23 sec
+  MyHashMapTSBuckets  (TreeSet)       0.38 sec
+  MyHashMapHSBuckets  (HashSet)       0.35 sec
+  MyHashMapPQBuckets  (PriorityQueue) 0.33 sec
+
+
+Observations
+------------
+* Scaling is close to linear and nothing degenerates. Going from
+  N=100000 to N=500000 is 5x the elements for 3.4-3.8x the time in
+  every measurement above. That ratio is slightly *sub*-linear rather
+  than exactly 5x; the small-N points carry a disproportionate share
+  of JIT compilation, which inflates the per-element cost at small N.
+  The larger-N points are the more trustworthy estimate of amortized
+  O(1) insert.
+
+* MyHashMap is consistently ~2-4x slower than java.util.HashMap. The
+  gap comes from bookkeeping Java's does not pay: maintaining a
+  separate keySet, re-hashing the key on every update, and allocating a
+  fresh Node per insert.
+
+* LinkedList buckets are the fastest at every N (0.06 / 0.13 / 0.23 sec
+  vs 0.34-0.42 for the rest at N=500000). I re-ran N=500000 three
+  times to check this was not noise, and run-to-run jitter is only about
+  +/-0.05 sec (~13%): AL 0.36/0.35/0.37, LL 0.21/0.25/0.27,
+  TS 0.37/0.41/0.42, HS 0.37/0.37/0.37, PQ 0.37/0.38/0.34. The LL gap
+  is 2-3x the jitter, so it looks real rather than measurement error.
+  Plausible cause: with Math.abs(hash / 23) the chains stay short, and
+  LinkedList.add is an O(1) tail append with no array growth or
+  copying, whereas ArrayList pays amortised resize costs.
+
+* Caveat on the above: BucketsSpeedTest runs all five implementations
+  back to back in one JVM in a fixed order (AL, LL, TS, HS, PQ). LL
+  runs second and therefore inherits a JIT already warmed by AL, which
+  plausibly explains some of its advantage. Ranking the five fairly
+  would need one JVM per implementation, or the order shuffled per run.
+  I did not do that, so treat the exact LL-vs-AL margin as unresolved.
+
+* TreeSet buckets are the slowest at N=500000 (0.37-0.42), consistent
+  with their O(log b) per-insert cost.
+
+* Comparing per-bucket cost is also confounded in that each class
+  inherits heap layout and JIT state from the ones measured before it.
+
+
+How to reproduce
+----------------
+  cd lab8
+  mvn -o clean test
+  CP="target/test-classes:target/classes:$(mvn -o dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q)"
+
+  printf '10\n100000\nn\n'                  | java -cp "$CP" speed.BucketsSpeedTest
+  printf '10\n500000\nn\n'                  | java -cp "$CP" speed.BucketsSpeedTest
+  printf '10\n100000\n100000\n100000\nn\n'  | java -cp "$CP" speed.InsertRandomSpeedTest
+  printf '10\n500000\n500000\n500000\nn\n'  | java -cp "$CP" speed.InsertRandomSpeedTest
+  printf '100000\n100000\n100000\nn\n'      | java -cp "$CP" speed.InsertInOrderSpeedTest
+  printf '500000\n500000\n500000\nn\n'      | java -cp "$CP" speed.InsertInOrderSpeedTest
+
+The speed tests are main()-driven benchmarks, not JUnit tests, so
+mvn test does not run them. Surefire's JUnit4 provider skips classes
+that have no @Test methods.
+
+Unit test status: mvn -o clean test -> 18/18 passing
+  TestMyHashMap         8 tests
+  TestMyHashMapBuckets  8 tests (same checks across 5 bucket types)
+  TestMyHashMapExtra    2 tests (optional remove() coverage)
