@@ -2,11 +2,13 @@ package byow.Core;
 
 import byow.TileEngine.TERenderer;
 import byow.TileEngine.TETile;
+import byow.InputDemo.InputSource;
+import byow.InputDemo.StringInputDevice;
 
 public class Engine {
     TERenderer ter = new TERenderer();
     /* Feel free to change the width and height. */
-    public static final int WIDTH = 80;
+    public static final int WIDTH = 80; 
     public static final int HEIGHT = 30;
 
     /**
@@ -38,15 +40,47 @@ public class Engine {
      * @return the 2D TETile[][] representing the state of the world
      */
     public TETile[][] interactWithInputString(String input) {
-        // TODO: Fill out this method so that it run the engine using the input
-        // passed in as an argument, and return a 2D tile representation of the
-        // world that would have been drawn if the same inputs had been given
-        // to interactWithKeyboard().
-        //
-        // See proj3.byow.InputDemo for a demo of how you can make a nice clean interface
-        // that works for many different input types.
-
-        TETile[][] finalWorldFrame = null;
+        TETile[][] finalWorldFrame = new TETile[WIDTH][HEIGHT];
+        InputSource input_source = new StringInputDevice(input);
+        handleKeys(finalWorldFrame, input_source);
+        
         return finalWorldFrame;
+    }
+
+    private void handleKeys(TETile[][] tiles, InputSource input_source) {
+        World world = null;
+        String seed_str = "";
+        while (input_source.possibleNextInput()) {
+            char key = input_source.getNextKey();
+            switch (key) {
+                case 'n':
+                    key = input_source.getNextKey();
+                    while (Character.isDigit(key)) {
+                        seed_str += String.valueOf(key);
+                        if (!input_source.possibleNextInput()) {
+                            break;
+                        }
+                        key = input_source.getNextKey();
+                    }
+                    long seed = Long.parseLong(seed_str);
+                    world = new World(WIDTH, HEIGHT, seed, tiles);
+                    world.generate();
+                    break;
+                case 'w':
+                    world.move(key);
+                    break;
+                case 's':
+                    world.move(key);
+                    break;
+                case 'a':
+                    world.move(key);
+                    break;
+                case 'd':
+                    world.move(key);
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }
