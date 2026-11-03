@@ -14,7 +14,7 @@ public class WorldTest {
 
     private static TETile[][] generate(long seed) {
         TETile[][] tiles = new TETile[W][H];
-        new World(W, H, seed, tiles).generate();
+        new World(seed, tiles);
         return tiles;
     }
 

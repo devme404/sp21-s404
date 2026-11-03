@@ -8,7 +8,7 @@ public class Test {
     public static void main(String args[]) {
         Engine engine = new Engine();
         TERenderer ter = new TERenderer();
-        ter.initialize(80, 30);
+        ter.initialize(engine.WIDTH, engine.HEIGHT);
         TETile[][] world = engine.interactWithInputString(args[0]);
         ter.renderFrame(world);
     }

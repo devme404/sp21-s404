@@ -8,8 +8,8 @@ import byow.InputDemo.StringInputDevice;
 public class Engine {
     TERenderer ter = new TERenderer();
     /* Feel free to change the width and height. */
-    public static final int WIDTH = 80; 
-    public static final int HEIGHT = 30;
+    public static final int WIDTH = 150; 
+    public static final int HEIGHT = 80;
 
     /**
      * Method used for exploring a fresh world. This method should handle all inputs,
@@ -63,8 +63,7 @@ public class Engine {
                         key = input_source.getNextKey();
                     }
                     long seed = Long.parseLong(seed_str);
-                    world = new World(WIDTH, HEIGHT, seed, tiles);
-                    world.generate();
+                    world = new World(seed, tiles);
                     break;
                 case 'w':
                     world.move(key);
