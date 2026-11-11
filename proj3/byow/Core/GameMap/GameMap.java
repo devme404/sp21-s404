@@ -3,12 +3,12 @@ package byow.Core;
 import byow.TileEngine.TETile;
 import byow.TileEngine.Tileset;
 
-public class Map {
+public class GameMap {
     public final int width, height;
     private TETile[][] tiles;
     private Tile[][] logical_tiles;
 
-    Map(TETile[][] tiles) {
+    GameMap(TETile[][] tiles) {
         width = tiles.length;
         height = tiles[0].length;
 
@@ -36,6 +36,6 @@ public class Map {
     }
 
     public boolean isWalkable(int x, int y) {
-        return tiles[x][y] == Tileset.FLOOR;
+        return tiles[x][y] == Tileset.FLOOR || tiles[x][y] == Tileset.AVATAR;
     }
 }

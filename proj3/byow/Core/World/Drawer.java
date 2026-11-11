@@ -4,7 +4,11 @@ import byow.TileEngine.TETile;
 import byow.TileEngine.Tileset;
 
 public class Drawer {
+    private static final TETile ROOM_TILE = Tileset.SAND;
     private TETile[][] tiles;
+    private static final int[][] adj = {
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
 
     Drawer(TETile[][] tiles) {
         this.tiles = tiles;
@@ -22,7 +26,19 @@ public class Drawer {
 
         for (int dx = 1; dx < room.width - 1; dx++) {
             for (int dy = 1; dy < room.height - 1; dy++) {
-                tiles[room.left() + dx][room.bottom() + dy] = Tileset.FLOOR;
+                tiles[room.left() + dx][room.bottom() + dy] = ROOM_TILE;
+            }
+        }
+    }
+
+    public void drawHallway(Hallway hallway) {
+        for (Point p : hallway.points) {
+            tiles[p.x][p.y] = Tileset.FLOOR;
+            for (int i = 0 ; i < adj.length; i++) {
+                int nx = p.x + adj[i][0];
+                int ny = p.y + adj[i][1];
+                TETile type = tiles[nx][ny];
+                tiles[nx][ny] = (type == Tileset.NOTHING) ? Tileset.WALL : type;
             }
         }
     }

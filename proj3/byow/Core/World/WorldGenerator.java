@@ -22,11 +22,11 @@ public class WorldGenerator {
         hallway_generator = new HallwayGenerator(width, height, random);
     }
 
-    void generateRooms(Map map, List<Room> rooms) {
+    void generateRooms(GameMap map, List<Room> rooms) {
         room_generator.generate(map, rooms);
     }
 
-    void generatorHallways(Map map, List<Room> rooms, List<Hallway> hallways) {
+    void generateHallways(GameMap map, List<Room> rooms, List<Hallway> hallways) {
         hallway_generator.generate(map, rooms, hallways);
     }
 

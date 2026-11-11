@@ -23,7 +23,15 @@ public class RandomGen {
         return RandomUtils.poisson(random, size / ratio) + 1;
     }
 
+    public int sampleEdge(int min, int max) {
+        if (max - min < 4) {
+            return min + 1;
+        }
+        return RandomUtils.uniform(random, min + 1, max - 2);
+    }
+
     public int hallwayWidth() {
         return RandomUtils.uniform(random, HALLWAY_MIN_WIDTH, HALLWAY_MAX_WIDTH);
     }
+
 }

@@ -20,7 +20,7 @@ public class RoomGenerator {
         room_num = random.numberTo(min_size, ROOM_MAX_NUM_RATIO);
     }
 
-    void generate(Map map, List<Room> rooms) {
+    void generate(GameMap map, List<Room> rooms) {
         int generated_room_num = 0;
 
         while (generated_room_num < room_num) {
@@ -34,7 +34,7 @@ public class RoomGenerator {
         }
     }
 
-    private Room tryPlaceRoom(Map map, List<Room> rooms) {
+    private Room tryPlaceRoom(GameMap map, List<Room> rooms) {
         Room room = null;
         boolean is_valid = false;
         int tries = 0;
@@ -52,7 +52,7 @@ public class RoomGenerator {
         return room;
     }
 
-    private void placeRoom(Map map, Room room) {
+    private void placeRoom(GameMap map, Room room) {
         for (int dx = 0; dx < room.width; dx++) {
             for (int dy = 0; dy < room.height; dy++) {
                 map.setTileType(room.left() + dx, room.bottom() + dy, TileType.ROOM);
@@ -61,12 +61,13 @@ public class RoomGenerator {
     }
 
     private boolean isRoomValid(Room room, List<Room> rooms) {
-        if (room.left() < 0 || room.right() >= width || room.bottom() < 0 || room.top() >= height) {
+        if (room.left() < 1 || room.right() >= width - 1 || room.bottom() <= 0 || room.top() >= height - 1) {
             return false;
         }
 
         for (Room r : rooms) {
-            if (room.overlap(r)) {
+            if (room.left() <= r.right() + 1 && r.left() <= room.right() + 1
+                    && room.bottom() <= r.top() + 1 && r.bottom() <= room.top() + 1) {
                 return false;
             }
         }

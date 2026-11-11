@@ -33,8 +33,22 @@ public final class Room {
             && left_bottom_y <= other.top() && other.left_bottom_y <= top();
     }
 
-    public boolean intersect(Room other) {
-        return left_bottom_x < other.right() && other.left_bottom_x < right()
-            && left_bottom_y < other.top() && other.left_bottom_y < top();
+    public int centerX() {
+        return (left() + right()) / 2;
+    }
+
+    public int centerY() {
+        return (bottom() + top()) / 2;
+    }
+
+    public Side sideToward(Room other) {
+        int dx = other.centerX() - centerX();
+        int dy = other.centerY() - centerY();
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            return dx > 0 ? Side.RIGHT : Side.LEFT;
+        } else {
+            return dy > 0 ? Side.TOP : Side.BOTTOM;
+        }
     }
 }

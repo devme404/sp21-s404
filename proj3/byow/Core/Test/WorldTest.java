@@ -18,6 +18,10 @@ public class WorldTest {
         return tiles;
     }
 
+    private static boolean isFloorLike(TETile t) {
+        return t == Tileset.FLOOR || t == Tileset.AVATAR;
+    }
+
     @Test(timeout = 5000)
     public void tilesAreNotNullAndInPalette() {
         TETile[][] t = generate(12);
@@ -25,7 +29,7 @@ public class WorldTest {
             for (int y = 0; y < H; y++) {
                 assertNotNull("null at " + x + "," + y, t[x][y]);
                 assertTrue("unexpected tile at " + x + "," + y,
-                    t[x][y] == Tileset.NOTHING || t[x][y] == Tileset.FLOOR || t[x][y] == Tileset.WALL);
+                    t[x][y] == Tileset.NOTHING || isFloorLike(t[x][y]) || t[x][y] == Tileset.WALL);
             }
         }
     }
@@ -53,10 +57,24 @@ public class WorldTest {
        assertEquals("isolated floor\n" + ascii(t), total, reachable);
    }
 
+   @Test(timeout = 20000)
+   public void manySeedsAreConnected() {
+       for (long seed = 0; seed < 100; seed++) {
+           TETile[][] t = generate(seed);
+           int[] start = firstFloor(t);
+           assertNotNull("seed " + seed + " has no floor", start);
+
+           int total = countFloor(t);
+           int reachable = floodFill(t, start[0], start[1]);
+           assertEquals("seed " + seed + " has isolated floor\n" + ascii(t),
+                   total, reachable);
+       }
+   }
+
    private static int[] firstFloor(TETile[][] t) {
        for (int x = 0; x < t.length; x++) {
            for (int y = 0; y < t[0].length; y++) {
-               if (t[x][y] == Tileset.FLOOR) {
+               if (isFloorLike(t[x][y])) {
                    return new int[]{x, y};
                }
            }
@@ -68,7 +86,7 @@ public class WorldTest {
        int n = 0;
        for (int x = 0; x < t.length; x++) {
            for (int y = 0; y < t[0].length; y++) {
-               if (t[x][y] == Tileset.FLOOR) {
+               if (isFloorLike(t[x][y])) {
                    n++;
                }
            }
@@ -91,7 +109,7 @@ public class WorldTest {
                int nx = p[0] + d[0];
                int ny = p[1] + d[1];
                if (nx >= 0 && nx < t.length && ny >= 0 && ny < t[0].length
-                       && !seen[nx][ny] && t[nx][ny] == Tileset.FLOOR) {
+                       && !seen[nx][ny] && isFloorLike(t[nx][ny])) {
                    seen[nx][ny] = true;
                    q.add(new int[]{nx, ny});
                }
