@@ -7,7 +7,9 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class HallwayPathFinder {
-    private static final int[][] adj = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    private static final int[][] adj = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+
+    // Use BFS to find a valid path between the two rooms.
     public static boolean findPath(List<Point> path, GameMap map) {
         Point start = path.get(0);
         Point end = path.get(1);
@@ -29,7 +31,6 @@ public class HallwayPathFinder {
                 break;
             }
 
-
             for (int[] d : adj) {
                 int nx = p.x + d[0];
                 int ny = p.y + d[1];
@@ -42,7 +43,11 @@ public class HallwayPathFinder {
                 }
 
                 Point np = new Point(nx, ny);
-                if (!np.equals(end) && !passable(map, nx, ny)) {
+
+                // This condition isn't intuitive at first glance: it first checks whether the
+                // tile is the end, and then whether the tile is passable, since the end is not
+                // passable.
+                if (!np.equals(end) && !map.isPassable(nx, ny)) {
                     continue;
                 }
 
@@ -56,6 +61,7 @@ public class HallwayPathFinder {
             return false;
         }
 
+        // Reconstruct the path by tracking the parent tile.
         List<Point> result = new LinkedList<>();
         for (Point cur = end; cur != null; cur = parents.get(cur)) {
             result.addFirst(cur);
@@ -63,20 +69,18 @@ public class HallwayPathFinder {
                 break;
             }
         }
+
+        // Discard the invalid path.
         if (result.isEmpty() || !result.getFirst().equals(start)) {
             return false;
         }
+
         path.clear();
         path.addAll(result);
 
         for (Point p : result) {
-            map.setTileType(p.x, p.y, TileType.HALLWAY);
+            map.setLogicalTileType(p.x, p.y, TileType.HALLWAY);
         }
         return true;
-    }
-
-    private static boolean passable(GameMap map, int x, int y) {
-        TileType t = map.getTileType(x, y);
-        return t == TileType.EMPTY || t == TileType.HALLWAY;
     }
 }

@@ -13,9 +13,8 @@ public class WorldTest {
     private static final int H = 30;
 
     private static TETile[][] generate(long seed) {
-        TETile[][] tiles = new TETile[W][H];
-        new World(seed, tiles);
-        return tiles;
+        World world = new WorldGenerator(W, H, seed).generate();
+        return world.getTiles();
     }
 
     private static boolean isFloorLike(TETile t) {

@@ -13,13 +13,13 @@ public class HallwayGeneratorTest {
     private static final int HEIGHT = 20;
 
     private static GameMap emptyMap() {
-        return new GameMap(new TETile[WIDTH][HEIGHT]);
+        return new GameMap(WIDTH, HEIGHT);
     }
 
     private static void markRoom(GameMap map, Room room) {
         for (int x = room.left(); x <= room.right(); x++) {
             for (int y = room.bottom(); y <= room.top(); y++) {
-                map.setTileType(x, y, TileType.ROOM);
+                map.setLogicalTileType(x, y, TileType.ROOM);
             }
         }
     }
@@ -53,8 +53,9 @@ public class HallwayGeneratorTest {
 
         HallwayGenerator generator = new HallwayGenerator(
                 WIDTH, HEIGHT, new RandomGen(12345));
-        List<Hallway> hallways = new ArrayList<>();
-        generator.generate(map, rooms, hallways);
+        HallwayGenerationResult result = generator.generate(map, rooms);
+        assertTrue(result.message.orElse("hallway generation failed"), result.success);
+        List<Hallway> hallways = result.hallways;
 
         assertTrue("expected at least one hallway per tree edge",
                 hallways.size() >= rooms.size() - 1);
@@ -78,7 +79,7 @@ public class HallwayGeneratorTest {
             for (Point p : hallway.points) {
                 assertTrue(p.x >= 0 && p.x < WIDTH);
                 assertTrue(p.y >= 0 && p.y < HEIGHT);
-                assertEquals(TileType.HALLWAY, map.getTileType(p.x, p.y));
+                assertEquals(TileType.HALLWAY, map.getLogicalTileType(p.x, p.y));
             }
         }
 

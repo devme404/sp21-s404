@@ -10,7 +10,7 @@ import static org.junit.Assert.*;
 
 public class HallwayPathFinderTest {
     private static GameMap map(int width, int height) {
-        return new GameMap(new TETile[width][height]);
+        return new GameMap(width, height);
     }
 
     private static List<Point> path(Point start, Point end) {
@@ -26,7 +26,7 @@ public class HallwayPathFinderTest {
 
         // Wall at x=4, y=1..4. There is a gap at y=5.
         for (int y = 1; y <= 4; y++) {
-            map.setTileType(4, y, TileType.ROOM);
+            map.setLogicalTileType(4, y, TileType.ROOM);
         }
 
         List<Point> path = path(new Point(2, 3), new Point(6, 3));
@@ -39,7 +39,7 @@ public class HallwayPathFinderTest {
             Point p = path.get(i);
             assertTrue(p.x >= 0 && p.x < map.width);
             assertTrue(p.y >= 0 && p.y < map.height);
-            assertNotEquals(TileType.ROOM, map.getTileType(p.x, p.y));
+            assertNotEquals(TileType.ROOM, map.getLogicalTileType(p.x, p.y));
 
             if (i > 0) {
                 Point prev = path.get(i - 1);
@@ -55,7 +55,7 @@ public class HallwayPathFinderTest {
 
         // Full wall at x=4 across the walkable area.
         for (int y = 1; y <= 5; y++) {
-            map.setTileType(4, y, TileType.ROOM);
+            map.setLogicalTileType(4, y, TileType.ROOM);
         }
 
         List<Point> path = path(new Point(2, 3), new Point(6, 3));
@@ -64,7 +64,7 @@ public class HallwayPathFinderTest {
         assertEquals("failed path should not be partially rewritten", 2, path.size());
         for (int x = 0; x < map.width; x++) {
             for (int y = 0; y < map.height; y++) {
-                assertNotEquals(TileType.HALLWAY, map.getTileType(x, y));
+                assertNotEquals(TileType.HALLWAY, map.getLogicalTileType(x, y));
             }
         }
     }
@@ -74,9 +74,9 @@ public class HallwayPathFinderTest {
         GameMap map = map(9, 7);
 
         for (int y = 1; y <= 3; y++) {
-            map.setTileType(4, y, TileType.ROOM);
+            map.setLogicalTileType(4, y, TileType.ROOM);
         }
-        map.setTileType(4, 4, TileType.HALLWAY);
+        map.setLogicalTileType(4, 4, TileType.HALLWAY);
 
         List<Point> path = path(new Point(2, 3), new Point(6, 3));
 

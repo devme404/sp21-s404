@@ -8,78 +8,45 @@ import byow.InputDemo.StringInputDevice;
 public class Engine {
     TERenderer ter = new TERenderer();
     /* Feel free to change the width and height. */
-    public static final int WIDTH = 150; 
+    public static final int WIDTH = 150;
     public static final int HEIGHT = 80;
 
     /**
-     * Method used for exploring a fresh world. This method should handle all inputs,
+     * Method used for exploring a fresh world. This method should handle all
+     * inputs,
      * including inputs from the main menu.
      */
     public void interactWithKeyboard() {
     }
 
     /**
-     * Method used for autograding and testing your code. The input string will be a series
-     * of characters (for example, "n123sswwdasdassadwas", "n123sss:q", "lwww". The engine should
+     * Method used for autograding and testing your code. The input string will be a
+     * series
+     * of characters (for example, "n123sswwdasdassadwas", "n123sss:q", "lwww". The
+     * engine should
      * behave exactly as if the user typed these characters into the engine using
      * interactWithKeyboard.
      *
-     * Recall that strings ending in ":q" should cause the game to quite save. For example,
-     * if we do interactWithInputString("n123sss:q"), we expect the game to run the first
+     * Recall that strings ending in ":q" should cause the game to quite save. For
+     * example,
+     * if we do interactWithInputString("n123sss:q"), we expect the game to run the
+     * first
      * 7 commands (n123sss) and then quit and save. If we then do
      * interactWithInputString("l"), we should be back in the exact same state.
      *
      * In other words, both of these calls:
-     *   - interactWithInputString("n123sss:q")
-     *   - interactWithInputString("lww")
+     * - interactWithInputString("n123sss:q")
+     * - interactWithInputString("lww")
      *
      * should yield the exact same world state as:
-     *   - interactWithInputString("n123sssww")
+     * - interactWithInputString("n123sssww")
      *
      * @param input the input string to feed to your program
      * @return the 2D TETile[][] representing the state of the world
      */
     public TETile[][] interactWithInputString(String input) {
-        TETile[][] finalWorldFrame = new TETile[WIDTH][HEIGHT];
-        InputSource input_source = new StringInputDevice(input);
-        handleKeys(finalWorldFrame, input_source);
-        
-        return finalWorldFrame;
-    }
-
-    private void handleKeys(TETile[][] tiles, InputSource input_source) {
-        World world = null;
-        String seed_str = "";
-        while (input_source.possibleNextInput()) {
-            char key = input_source.getNextKey();
-            switch (key) {
-                case 'n':
-                    key = input_source.getNextKey();
-                    while (Character.isDigit(key)) {
-                        seed_str += String.valueOf(key);
-                        if (!input_source.possibleNextInput()) {
-                            break;
-                        }
-                        key = input_source.getNextKey();
-                    }
-                    long seed = Long.parseLong(seed_str);
-                    world = new World(seed, tiles);
-                    break;
-                case 'w':
-                    world.move(key);
-                    break;
-                case 's':
-                    world.move(key);
-                    break;
-                case 'a':
-                    world.move(key);
-                    break;
-                case 'd':
-                    world.move(key);
-                    break;
-                default:
-                    break;
-            }
-        }
+        GameSystem system = new GameSystem(WIDTH, HEIGHT);
+        system.runInput(input);
+        return system.getTiles();
     }
 }

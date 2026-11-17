@@ -1,8 +1,10 @@
 package byow.Core;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RoomGenerator {
+    private static final int ROOM_MIN_SIZE = 3;
     private static final int ROOM_MAX_SIZE_RATIO = 4;
     private static final int ROOM_MAX_NUM_RATIO = 3;
     private static final int MAX_TRIES = 100;
@@ -20,7 +22,8 @@ public class RoomGenerator {
         room_num = random.numberTo(min_size, ROOM_MAX_NUM_RATIO);
     }
 
-    void generate(GameMap map, List<Room> rooms) {
+    List<Room> generate(GameMap map) {
+        List<Room> rooms = new ArrayList<>();
         int generated_room_num = 0;
 
         while (generated_room_num < room_num) {
@@ -32,6 +35,8 @@ public class RoomGenerator {
             placeRoom(map, room);
             rooms.add(room);
         }
+
+        return rooms;
     }
 
     private Room tryPlaceRoom(GameMap map, List<Room> rooms) {
@@ -44,7 +49,8 @@ public class RoomGenerator {
             if (tries > MAX_TRIES) {
                 return null;
             }
-            room = new Room(rooms.size(), random.roomSize(room_max_size), random.roomSize(room_max_size), random.intTo(width), random.intTo(height));
+            room = new Room(rooms.size(), roomSize(random), roomSize(random),
+                    random.intTo(width), random.intTo(height));
             is_valid = isRoomValid(room, rooms);
             tries++;
         }
@@ -55,7 +61,7 @@ public class RoomGenerator {
     private void placeRoom(GameMap map, Room room) {
         for (int dx = 0; dx < room.width; dx++) {
             for (int dy = 0; dy < room.height; dy++) {
-                map.setTileType(room.left() + dx, room.bottom() + dy, TileType.ROOM);
+                map.setLogicalTileType(room.left() + dx, room.bottom() + dy, TileType.ROOM);
             }
         }
     }
@@ -72,5 +78,9 @@ public class RoomGenerator {
             }
         }
         return true;
+    }
+
+    private int roomSize(RandomGen random) {
+        return random.intInterval(ROOM_MIN_SIZE, room_max_size);
     }
 }
