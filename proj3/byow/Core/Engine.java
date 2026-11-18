@@ -11,6 +11,8 @@ public class Engine {
     public static final int WIDTH = 150;
     public static final int HEIGHT = 80;
 
+    private GameSystem system;
+
     /**
      * Method used for exploring a fresh world. This method should handle all
      * inputs,
@@ -45,8 +47,12 @@ public class Engine {
      * @return the 2D TETile[][] representing the state of the world
      */
     public TETile[][] interactWithInputString(String input) {
-        GameSystem system = new GameSystem(WIDTH, HEIGHT);
+        system = new GameSystem(WIDTH, HEIGHT);
         system.runInput(input);
         return system.getTiles();
+    }
+
+    GameSystem system() {
+        return system;
     }
 }

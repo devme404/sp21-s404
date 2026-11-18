@@ -62,7 +62,7 @@ public class HallwayPathFinder {
         }
 
         // Reconstruct the path by tracking the parent tile.
-        List<Point> result = new LinkedList<>();
+        LinkedList<Point> result = new LinkedList<>();
         for (Point cur = end; cur != null; cur = parents.get(cur)) {
             result.addFirst(cur);
             if (cur.equals(start)) {

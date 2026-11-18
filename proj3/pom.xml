@@ -222,8 +222,7 @@
                       JDKs reject (JDK 27 supports 8 and up). 11 matches the rest of
                       this repo and still runs on any modern JDK.
                     -->
-                    <source>11</source>
-                    <target>11</target>
+                    <release>11</release>
                     <!-- Tileset.java contains non-ASCII glyphs, so be explicit. -->
                     <encoding>UTF-8</encoding>
                     <compilerArgs>

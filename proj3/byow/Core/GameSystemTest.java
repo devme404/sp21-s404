@@ -13,7 +13,7 @@ public class GameSystemTest {
     @Test(timeout = 20000)
     public void newCommandParsesSeedAndCreatesWorld() {
         GameSystem system = new GameSystem(W, H);
-        system.runInput("n123");
+        system.runInput("N123S");
 
         TETile[][] tiles = system.getTiles();
         assertNotNull(tiles);
@@ -37,8 +37,8 @@ public class GameSystemTest {
         GameSystem a = new GameSystem(W, H);
         GameSystem b = new GameSystem(W, H);
 
-        a.runInput("n123");
-        b.runInput("n123");
+        a.runInput("N123S");
+        b.runInput("N123S");
 
         TETile[][] first = a.getTiles();
         TETile[][] second = b.getTiles();
@@ -53,7 +53,7 @@ public class GameSystemTest {
     @Test(timeout = 20000)
     public void movementAfterNewCommandDoesNotCrash() {
         GameSystem system = new GameSystem(W, H);
-        system.runInput("n123s");
+        system.runInput("N123Ss");
 
         TETile[][] tiles = system.getTiles();
         assertNotNull(tiles);
@@ -73,7 +73,7 @@ public class GameSystemTest {
     public void missingSeedIsRejected() {
         GameSystem system = new GameSystem(W, H);
         try {
-            system.runInput("n");
+            system.runInput("N");
             fail("expected missing seed to be rejected");
         } catch (IllegalArgumentException expected) {
             // expected

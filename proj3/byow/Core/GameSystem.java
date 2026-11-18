@@ -68,7 +68,7 @@ public class GameSystem {
         int i = 0;
 
         while (i < input.length()) {
-            char command = input.charAt(i++);
+            char command = Character.toLowerCase(input.charAt(i++));
             String argument = null;
 
             if (command == 'n') {
@@ -80,9 +80,21 @@ public class GameSystem {
                     throw new IllegalArgumentException("expected seed after n");
                 }
                 argument = input.substring(start, i);
+
+                // The seed is terminated by S (case-insensitive). Consume it so it is
+                // not interpreted as the movement key 's'.
+                if (i < input.length()
+                        && Character.toLowerCase(input.charAt(i)) == 's') {
+                    i++;
+                }
             }
 
-            result.add(new Command(command, argument));
+            if (command == 'w' || command == 'a'
+                    || command == 's' || command == 'd') {
+                result.add(new Command(command, null));
+            } else {
+                result.add(new Command(command, argument));
+            }
         }
 
         return result;
@@ -95,5 +107,9 @@ public class GameSystem {
 
     public TETile[][] getTiles() {
         return world.getTiles();
+    }
+
+    World world() {
+        return world;
     }
 }
